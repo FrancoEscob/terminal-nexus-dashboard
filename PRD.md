@@ -1,0 +1,253 @@
+# 📋 PRD - Terminal Nexus Dashboard
+
+**Product Requirements Document**  
+**Versión:** 1.0  
+**Fecha:** 2026-02-16  
+**Autor:** Jarvix (con input de Franco)  
+
+---
+
+## 1. Propósito
+
+### 1.1 Problema
+Actualmente, gestionar múltiples sesiones de Claude Code en el VPS es:
+- **Opaco:** No se ve en tiempo real qué está haciendo cada agente
+- **Manual:** Crear sesiones requiere SSH + tmux + comandos manuales
+- **No colaborativo:** Fran no puede ver qué hago yo (Jarvix) en las sesiones sin hacer attach
+
+### 1.2 Solución
+Un dashboard web donde ambos (humano + IA) podemos:
+- Ver todas las terminales en tiempo real
+- Crear/matar sesiones desde UI
+- Interactuar con cualquier terminal desde el browser
+- Tener una "vista de pájaro" de todo el compute del VPS
+
+### 1.3 Éxito (KPIs)
+- [ ] Crear una sesión de Claude Code en < 10 segundos
+- [ ] Ver output de cualquier terminal con < 100ms de delay
+- [ ] Redimensionar una terminal sin perder conexión
+- [ ] Correr 10+ sesiones simultáneas sin degradación
+
+---
+
+## 2. Usuarios
+
+### 2.1 Primary: Jarvix (IA / Autonomous Agent)
+- **Necesita:** API REST para spawnear sesiones, WebSocket para monitorear
+- **Flujo:** Recibo tarea de Fran → spawneo N agents → monitoreo progreso → reporto
+- **Pain point:** Ahora tengo que hacer `exec()` y parsear output, no tengo visibilidad continua
+
+### 2.2 Secondary: Franco (Humano / Admin)
+- **Necesita:** UI intuitiva, overview rápido, intervención manual
+- **Flujo:** Abre dashboard → ve todos los agents → expande uno para ver detalle → interactúa si es necesario
+- **Pain point:** Ahora tiene que `ssh + tmux attach` para ver qué hace cada agente
+
+---
+
+## 3. Requisitos Funcionales
+
+### 3.1 RF-001: Gallery View
+**Como** usuario, **quiero** ver todas las sesiones en una grilla/masonry **para** tener visión general.
+
+**Criterios:**
+- Layout responsive (grid en desktop, lista en mobile)
+- Cada tile muestra:
+  - Preview en vivo de la terminal (xterm.js)
+  - Nombre de sesión
+  - Tipo de agente (badge: Claude / Droid / Shell)
+  - Estado (indicator LED)
+  - Tiempo activo (counter)
+  - Directorio de trabajo (path truncado)
+- Tiles redimensionables (drag corner)
+- Reordenables (drag & drop)
+
+### 3.2 RF-002: Terminal Interactiva
+**Como** usuario, **quiero** hacer click en una tile y ver la terminal en tamaño completo **para** interactuar con ella.
+
+**Criterios:**
+- Modal o expand inline
+- Input funcional (puedo escribir comandos)
+- Output en tiempo real (streaming)
+- Resize funcional (Ctrl+L equivalente)
+- Copy/paste funcional
+- Scrollback buffer (últimas 1000 líneas)
+
+### 3.3 RF-003: Crear Sesión
+**Como** usuario, **quiero** crear una nueva sesión desde UI **para** no depender de comandos manuales.
+
+**Criterios:**
+- Botón flotante "+ New Session"
+- Modal con formulario:
+  - **Type:** Claude Code / Droid / Custom Shell (radio buttons)
+  - **Name:** Auto-generado o custom (ej: "claude-pr-123")
+  - **Working Directory:** Input con autocomplete de paths
+  - **Flags:** Checkboxes para `--yolo`, `--full-auto` (solo para Claude)
+  - **Command:** Solo visible si Type = Shell (ej: `python script.py`)
+- Validación: directorio debe existir
+- Feedback inmediato: la nueva sesión aparece en gallery
+
+### 3.4 RF-004: Control de Sesiones
+**Como** usuario, **quiero** controlar el ciclo de vida de una sesión **para** gestionar recursos.
+
+**Criterios:**
+- **Kill:** Mata el proceso (SIGTERM, luego SIGKILL si no responde)
+- **Restart:** Kill + recrear con mismos parámetros
+- **Pause/Resume:** SIGSTOP / SIGCONT
+- **Clear:** Limpia la pantalla (no mata el proceso)
+- Confirmación para Kill/Restart (modal "¿Estás seguro?")
+
+### 3.5 RF-005: Persistencia
+**Como** sistema, **quiero** que las sesiones sobrevivan al reload del browser **para** que no se pierda trabajo.
+
+**Criterios:**
+- Las sesiones corren en tmux (persisten en servidor)
+- El dashboard solo "se conecta" a sesiones existentes
+- Si recargo el browser, reconecto automáticamente
+- Las sesiones aparecen en la lista hasta que se haga Kill explícito
+
+### 3.6 RF-006: API para IA (Jarvix)
+**Como** IA, **quiero** una API REST para gestionar sesiones programáticamente **para** orquestar múltiples agents.
+
+**Criterios:**
+- Autenticación via token (header `X-API-Key`)
+- Endpoints:
+  - `POST /api/sessions` → crear
+  - `GET /api/sessions` → listar
+  - `DELETE /api/sessions/:id` → matar
+  - `GET /api/sessions/:id/logs` → historial completo
+- Respuestas en JSON con código de error claro
+- Rate limiting opcional (no crítico para MVP)
+
+---
+
+## 4. Requisitos No-Funcionales
+
+### 4.1 Performance
+- **RNF-001:** Tiempo de carga inicial < 2 segundos en 4G
+- **RNF-002:** Latencia WebSocket < 100ms (localhost)
+- **RNF-003:** Soportar 20 sesiones visibles simultáneas sin lag
+- **RNF-004:** Memory footprint < 200MB para el backend
+
+### 4.2 Seguridad
+- **RNF-005:** API protegida con token (no dejar abierta)
+- **RNF-006:** WebSocket con origin validation
+- **RNF-007:** Sanitización de inputs (evitar command injection)
+- **RNF-008:** Restricción de directorios (whitelist de workdirs permitidos)
+
+### 4.3 Usabilidad
+- **RNF-009:** Sin tutorial necesario (UI intuitiva)
+- **RNF-010:** Dark mode default (terminales se ven mejor)
+- **RNF-011:** Keyboard shortcuts (ESC para cerrar modal, Ctrl+K para crear)
+
+### 4.4 Confiabilidad
+- **RNF-012:** Reconnect automático si se corta WebSocket
+- **RNF-013:** Graceful degradation (si backend cae, mostrar error claro)
+- **RNF-014:** Backup de sesiones activas (lista en SQLite)
+
+---
+
+## 5. Tech Stack (Justificación)
+
+### 5.1 Frontend: Next.js 15 + React 19 + TypeScript
+| Aspecto | Justificación |
+|---------|---------------|
+| Next.js 15 | App Router, Server Components para menos JS en cliente, API routes en mismo repo |
+| React 19 | Concurrent features, mejor manejo de estado async |
+| TypeScript | Type safety para la API contract, refactor seguro |
+| Tailwind CSS | Utility-first, rápido de iterar, bundle size optimizado |
+| Shadcn/ui | Componentes accesibles, customizable, sin vendor lock-in |
+
+### 5.2 Terminal: xterm.js
+- Estándar de la industria (VS Code lo usa)
+- Addons disponibles: fit, webgl renderer, ligatures, search
+- WebSocket addon listo para usar
+- Manejo de encoding correcto (emojis, caracteres especiales)
+
+### 5.3 Backend: Next.js API Routes + Socket.io
+| Aspecto | Justificación |
+|---------|---------------|
+| Same-repo | Un solo deploy, tipos compartidos |
+| Socket.io | Reconnect, rooms (una por terminal), fallback a polling |
+| node-pty | Crear ptys para cada sesión, bind a tmux |
+
+### 5.4 Procesos: tmux + node-pty
+- **tmux:** Persistencia (sesión sigue si el WS se corta)
+- **node-pty:** Control preciso sobre los ptys
+- **Combinación:** Creamos pty con node-pty → attach a tmux session
+
+### 5.5 Base de Datos: SQLite (libsql/turso opcional)
+- Zero-config para VPS
+- Suficiente para sessions metadata
+- Fácil backup (un archivo)
+
+---
+
+## 6. Edge Cases
+
+### 6.1 Session Crash
+- Si el proceso muere (ej: Claude Code crash), el tile muestra 🔴 y un botón "Ver logs"
+- Los logs se guardan en SQLite para post-mortem
+
+### 6.2 Network Intermittent
+- WebSocket se reconecta automáticamente
+- Mientras tanto, el tile muestra "Reconnecting..." con spinner
+- No se pierde data porque tmux sigue corriendo
+
+### 6.3 Resize During Command
+- Si redimensiono mientras corre un comando largo, el proceso recibe SIGWINCH
+- xterm.js re-emite el resize al pty
+
+### 6.4 Multiple Users (Future)
+- MVP es single-user (Fran + Jarvix en mismo browser/entorno)
+- Para multi-user, agregaríamos "modo broadcast" vs "modo colaborativo"
+
+---
+
+## 7. Open Questions
+
+1. **¿Soportar múltiples VPS?** (V1: no, V2: agent remoto)
+2. **¿Limitar recursos por sesión?** (CPU/memory limits)
+3. **¿Integrar con GitHub?** (ver PRs asociados a cada sesión)
+4. **¿Notificaciones?** (push cuando una sesión termina)
+5. **¿Mobile-first o desktop-first?** (decisión: desktop-first, mobile usable)
+
+---
+
+## 8. Anexos
+
+### 8.1 Wireframes (texto)
+
+```
++----------------------------------------------------------+
+|  Terminal Nexus                                 [+] New  |
++----------------------------------------------------------+
+|                                                          |
+|  +----------------+  +----------------+  +-----------+   |
+|  | ┌──────────┐   |  | ┌──────────┐   |  | ┌───────┐ |   |
+|  | │> Working│   |  | │> Done    │   |  | │> _    │ |   |
+|  | │  on...  │   |  | │         │   |  | │       │ |   |
+|  | └──────────┘   |  | └──────────┘   |  | └───────┘ |   |
+|  | [Claude] 🟢    |  | [Droid]  🔴    |  | [Shell] 🟡|   |
+|  | ~/project-1    |  | ~/project-2    |  | ~/tmp     |   |
+|  | 00:12:34       |  | 00:45:12       |  | 02:00:00  |   |
+|  +----------------+  +----------------+  +-----------+   |
+|                                                          |
+|  +----------------+  +----------------+                  |
+|  | [Empty Slot]   |  | [Empty Slot]   |                  |
+|  |   + Create     |  |   + Create     |                  |
+|  +----------------+  +----------------+                  |
+|                                                          |
++----------------------------------------------------------+
+```
+
+### 8.2 User Stories (extras)
+
+**US-001:** "Como Fran, quiero ver un resumen de todas las tareas que están corriendo para decidir en cuál intervenir."
+
+**US-002:** "Como Jarvix, quiero poder spawnear 5 agents simultáneamente y ver el progreso de todos en una grilla."
+
+**US-003:** "Como Fran, quiero poder hacer click en una terminal y escribir un comando si veo que el agente se atascó."
+
+---
+
+*PRD v1.0 — Aprobación pendiente de Franco*
