@@ -53,9 +53,10 @@ export class SessionManager {
         cols: config.cols || 80,
         rows: config.rows || 24
       });
+      const tmuxBinary = TmuxWrapper.getTmuxBinary();
 
       // Spawn pty for the tmux session
-      const pty = spawn('tmux', [
+      const pty = spawn(tmuxBinary, [
         '-S', socketPath,
         'attach-session',
         '-t', sessionName
@@ -64,7 +65,12 @@ export class SessionManager {
         cols: config.cols || 80,
         rows: config.rows || 24,
         cwd: config.workdir,
-        env: { ...process.env, TMUX: '', TMUX_PANE: '' }
+        env: {
+          ...process.env,
+          PATH: process.env.PATH || '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+          TMUX: '',
+          TMUX_PANE: ''
+        }
       });
 
       // Create session object
@@ -244,8 +250,9 @@ export class SessionManager {
             const tmuxSession = tmuxSessions.find(s => s.name === sessionData.name);
             
             if (tmuxSession) {
+              const tmuxBinary = TmuxWrapper.getTmuxBinary();
               // Reattach to existing session
-              const pty = spawn('tmux', [
+              const pty = spawn(tmuxBinary, [
                 '-S', socketPath,
                 'attach-session',
                 '-t', sessionData.name
@@ -254,7 +261,12 @@ export class SessionManager {
                 cols: 80,
                 rows: 24,
                 cwd: sessionData.workdir,
-                env: { ...process.env, TMUX: '', TMUX_PANE: '' }
+                env: {
+                  ...process.env,
+                  PATH: process.env.PATH || '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+                  TMUX: '',
+                  TMUX_PANE: ''
+                }
               });
 
               const session: Session = {

@@ -25,12 +25,54 @@ export interface TmuxSessionInfo {
 
 export class TmuxWrapper {
   private static initialized = false;
+  private static tmuxBinary = 'tmux';
+
+  private static getTmuxEnv() {
+    return {
+      ...process.env,
+      PATH: process.env.PATH || '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+      TMUX: '',
+      TMUX_PANE: '',
+    };
+  }
+
+  private static async resolveTmuxBinary(): Promise<void> {
+    try {
+      const probe = spawnProcess('which', ['tmux'], {
+        env: this.getTmuxEnv(),
+      });
+
+      let stdout = '';
+      await new Promise<void>((resolve, reject) => {
+        probe.stdout?.on('data', (chunk: Buffer | string) => {
+          stdout += chunk.toString();
+        });
+
+        probe.on('error', reject);
+        probe.on('close', (code) => {
+          if (code === 0) {
+            const value = stdout.trim();
+            if (value) {
+              this.tmuxBinary = value;
+            }
+            resolve();
+            return;
+          }
+
+          reject(new Error('tmux not found in PATH'));
+        });
+      });
+    } catch {
+      // Keep default binary name and let real execution return detailed errors.
+      this.tmuxBinary = 'tmux';
+    }
+  }
 
   private static runTmux(args: string[], options?: { cwd?: string }): Promise<{ stdout: string; stderr: string }> {
     return new Promise((resolve, reject) => {
-      const child = spawnProcess('tmux', args, {
+      const child = spawnProcess(this.tmuxBinary, args, {
         cwd: options?.cwd,
-        env: { ...process.env, TMUX: '', TMUX_PANE: '' },
+        env: this.getTmuxEnv(),
       });
 
       let stdout = '';
@@ -70,6 +112,8 @@ export class TmuxWrapper {
 
   static async initialize(): Promise<void> {
     if (this.initialized) return;
+
+    await this.resolveTmuxBinary();
     
     // Check if tmux is available
     try {
@@ -83,6 +127,10 @@ export class TmuxWrapper {
     
     await this.ensureSocketDir();
     this.initialized = true;
+  }
+
+  static getTmuxBinary(): string {
+    return this.tmuxBinary;
   }
 
   static async createSession(config: TmuxSessionConfig): Promise<string> {
@@ -123,12 +171,12 @@ export class TmuxWrapper {
   static async killSession(sessionName: string, socketPath: string): Promise<void> {
     await this.initialize();
 
-    const pty = spawn('tmux', [
+    const pty = spawn(this.tmuxBinary, [
       '-S', socketPath,
       'kill-session',
       '-t', sessionName
     ], {
-      env: { ...process.env, TMUX: '', TMUX_PANE: '' }
+      env: this.getTmuxEnv()
     });
 
     return new Promise((resolve, reject) => {
@@ -192,8 +240,8 @@ export class TmuxWrapper {
       args.push(`-${lines}`);
     }
 
-    const pty = spawn('tmux', args, {
-      env: { ...process.env, TMUX: '', TMUX_PANE: '' }
+    const pty = spawn(this.tmuxBinary, args, {
+      env: this.getTmuxEnv()
     });
 
     let output = '';
@@ -216,14 +264,14 @@ export class TmuxWrapper {
   static async sendKeys(sessionName: string, keys: string, socketPath: string): Promise<void> {
     await this.initialize();
 
-    const pty = spawn('tmux', [
+    const pty = spawn(this.tmuxBinary, [
       '-S', socketPath,
       'send-keys',
       '-t', sessionName,
       keys,
       'C-m' // Enter
     ], {
-      env: { ...process.env, TMUX: '', TMUX_PANE: '' }
+      env: this.getTmuxEnv()
     });
 
     return new Promise((resolve, reject) => {
@@ -241,14 +289,14 @@ export class TmuxWrapper {
   static async resizeSession(sessionName: string, cols: number, rows: number, socketPath: string): Promise<void> {
     await this.initialize();
 
-    const pty = spawn('tmux', [
+    const pty = spawn(this.tmuxBinary, [
       '-S', socketPath,
       'resize-window',
       '-t', sessionName,
       '-x', cols.toString(),
       '-y', rows.toString()
     ], {
-      env: { ...process.env, TMUX: '', TMUX_PANE: '' }
+      env: this.getTmuxEnv()
     });
 
     return new Promise((resolve, reject) => {
