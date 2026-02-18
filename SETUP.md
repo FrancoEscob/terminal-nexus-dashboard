@@ -32,7 +32,7 @@ npx convex dev
 
 5. Setup database:
 ```bash
-pnpm db:push  # Push schema to SQLite
+pnpm --filter web db:push  # Apply SQL migrations to SQLite
 ```
 
 ## Development
@@ -50,7 +50,7 @@ This will start:
 
 ```bash
 pnpm db:generate  # Generate migrations
-pnpm db:push      # Push schema to database
+pnpm --filter web db:push  # Apply migrations
 pnpm db:studio    # Open Drizzle Studio
 ```
 
