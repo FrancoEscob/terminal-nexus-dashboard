@@ -104,12 +104,17 @@ export class TmuxWrapper {
       { cwd: workdir },
     );
 
-    // Verify session was created
-    const sessions = await this.listSessions(socketPath);
-    const sessionExists = sessions.some(s => s.name === name);
-    
+    // Verify session was created (tmux server may need a brief moment to become queryable)
+    let sessionExists = false;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const sessions = await this.listSessions(socketPath);
+      sessionExists = sessions.some((session) => session.name === name);
+      if (sessionExists) break;
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    }
+
     if (!sessionExists) {
-      throw new Error(`Failed to create tmux session: ${name}`);
+      throw new Error(`Failed to create tmux session: ${name} (not visible after creation)`);
     }
 
     return name;
