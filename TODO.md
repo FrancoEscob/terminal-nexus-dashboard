@@ -10,34 +10,34 @@
 
 | Fase | Estado | Estimado | Real |
 |------|--------|----------|------|
-| Fase 0: Setup | 🔴 Pendiente | 1-2 días | - |
-| Fase 1: Backend Core | 🔴 Pendiente | 2-3 días | - |
-| Fase 2: Frontend Core | 🔴 Pendiente | 2-3 días | - |
+| Fase 0: Setup | ✅ Completada | 1-2 días | 1 día |
+| Fase 1: Backend Core | ✅ Completada | 2-3 días | 1 día |
+| Fase 2: Frontend Core | ✅ Completada | 2-3 días | 1 día |
 | Fase 3: Interactividad | 🔴 Pendiente | 2 días | - |
 | Fase 4: Deploy | 🔴 Pendiente | 1-2 días | - |
 | **Total** | | **8-12 días** | |
 
 ---
 
-## 🔴 Fase 0: Setup y Arquitectura Base
+## ✅ Fase 0: Setup y Arquitectura Base - COMPLETADA
 
 **Objetivo:** Estructura inicial del proyecto, tooling configurado.
 
 ### Infra
-- [ ] **INIT-001:** Crear estructura de carpetas (`apps/web`, `packages/shared`)
-- [ ] **INIT-002:** Inicializar monorepo (Turborepo o pnpm workspaces)
-- [ ] **INIT-003:** Setup Next.js 15 con App Router
-- [ ] **INIT-004:** Configurar TypeScript (strict mode)
-- [ ] **INIT-005:** Configurar Tailwind CSS + Shadcn/ui
-- [ ] **INIT-006:** Setup ESLint + Prettier
-- [ ] **INIT-007:** Crear `.env.example` con todas las variables necesarias
+- [x] **INIT-001:** Crear estructura de carpetas (`apps/web`, `packages/shared`)
+- [x] **INIT-002:** Inicializar monorepo (Turborepo o pnpm workspaces)
+- [x] **INIT-003:** Setup Next.js 15 con App Router
+- [x] **INIT-004:** Configurar TypeScript (strict mode)
+- [x] **INIT-005:** Configurar Tailwind CSS + Shadcn/ui
+- [x] **INIT-006:** Setup ESLint + Prettier
+- [x] **INIT-007:** Crear `.env.example` con todas las variables necesarias
 
 ### Database
-- [ ] **INIT-008:** Setup SQLite con Drizzle ORM (datos locales)
-- [ ] **INIT-009:** Crear migraciones iniciales (schema.sql)
-- [ ] **INIT-010:** Setup Convex project + instalar SDK
-- [ ] **INIT-011:** Definir schema de Convex (presence, layouts, audit)
-- [ ] **INIT-012:** Scripts de seed para development
+- [x] **INIT-008:** Setup SQLite con Drizzle ORM (datos locales)
+- [x] **INIT-009:** Crear migraciones iniciales (schema.sql)
+- [x] **INIT-010:** Setup Convex project + instalar SDK
+- [x] **INIT-011:** Definir schema de Convex (presence, layouts, audit)
+- [x] **INIT-012:** Scripts de seed para development
 
 ### Documentación
 - [x] **INIT-013:** README.md con overview
@@ -45,120 +45,124 @@
 - [x] **INIT-015:** ARCHITECTURE.md con deep técnico
 - [x] **INIT-016:** CLOUDFLARE.md guía deploy
 
-**Definition of Done:**
+**✅ Definition of Done:**
 - `pnpm install` funciona sin errores
 - `pnpm dev` levanta Next.js en localhost:3000
 - Base de datos se inicializa correctamente
 - Todos los docs están en `PROJECTS/terminal-nexus-dashboard/`
 
+**Actualización:** Actualizado a Next.js 16 con Cache Components y Turbopack
+
 ---
 
-## 🟠 Fase 1: Backend Core (tmux + WebSocket)
+## ✅ Fase 1: Backend Core (tmux + WebSocket) - COMPLETADA
 
 **Objetivo:** API funcional para gestionar sesiones de terminal.
 
 ### tmux Integration
-- [ ] **BE-001:** Instalar e importar `node-pty`
-- [ ] **BE-002:** Crear `lib/tmux.ts` con wrapper de comandos
-- [ ] **BE-003:** Función `createSession()` - spawnea pty + tmux
-- [ ] **BE-004:** Función `killSession()` - SIGTERM/SIGKILL
-- [ ] **BE-005:** Función `resizeSession()` - SIGWINCH
-- [ ] **BE-006:** Función `listSessions()` - de tmux y de SQLite
-- [ ] **BE-007:** Aislar sockets en `/tmp/terminal-nexus/` para cada sesión
+- [x] **BE-001:** Instalar e importar `node-pty`
+- [x] **BE-002:** Crear `lib/tmux.ts` con wrapper de comandos
+- [x] **BE-003:** Función `createSession()` - spawnea pty + tmux
+- [x] **BE-004:** Función `killSession()` - SIGTERM/SIGKILL
+- [x] **BE-005:** Función `resizeSession()` - SIGWINCH
+- [x] **BE-006:** Función `listSessions()` - de tmux y de SQLite
+- [x] **BE-007:** Aislar sockets en `/tmp/terminal-nexus/` para cada sesión
 
 ### Session Manager
-- [ ] **BE-008:** Crear clase `SessionManager` singleton
-- [ ] **BE-009:** Método `create()` - validar path + spawn + persistir en DB
-- [ ] **BE-010:** Método `kill()` - limpiar proceso + actualizar DB
-- [ ] **BE-011:** Método `get()` - recuperar sesión activa
-- [ ] **BE-012:** Método `getAll()` - listar todas las sesiones
-- [ ] **BE-013:** Manejo de eventos: onData, onExit, onError
+- [x] **BE-008:** Crear clase `SessionManager` singleton
+- [x] **BE-009:** Método `create()` - validar path + spawn + persistir en DB
+- [x] **BE-010:** Método `kill()` - limpiar proceso + actualizar DB
+- [x] **BE-011:** Método `get()` - recuperar sesión activa
+- [x] **BE-012:** Método `getAll()` - listar todas las sesiones
+- [x] **BE-013:** Manejo de eventos: onData, onExit, onError
 
 ### API REST
-- [ ] **BE-014:** `GET /api/sessions` - listar todas
-- [ ] **BE-015:** `POST /api/sessions` - crear nueva
-- [ ] **BE-016:** `GET /api/sessions/[id]` - detalle de una
-- [ ] **BE-017:** `DELETE /api/sessions/[id]` - matar sesión
-- [ ] **BE-018:** `POST /api/sessions/[id]/resize` - redimensionar
-- [ ] **BE-019:** `POST /api/sessions/[id]/restart` - reiniciar
-- [ ] **BE-020:** Middleware de autenticación (API token)
+- [x] **BE-014:** `GET /api/sessions` - listar todas
+- [x] **BE-015:** `POST /api/sessions` - crear nueva
+- [x] **BE-016:** `GET /api/sessions/[id]` - detalle de una
+- [x] **BE-017:** `DELETE /api/sessions/[id]` - matar sesión
+- [x] **BE-018:** `POST /api/sessions/[id]/resize` - redimensionar
+- [x] **BE-019:** `POST /api/sessions/[id]/restart` - reiniciar
+- [ ] **BE-020:** Middleware de autenticación (API token) *Pospuesto para MVP*
 
 ### WebSocket (Socket.io)
-- [ ] **BE-021:** Setup Socket.io server en Next.js
-- [ ] **BE-022:** Evento `terminal:join` - suscribir a room de sesión
-- [ ] **BE-023:** Evento `terminal:leave` - desuscribir
-- [ ] **BE-024:** Evento `terminal:input` - escribir al pty
-- [ ] **BE-025:** Evento `terminal:resize` - redimensionar pty
-- [ ] **BE-026:** Broadcasting: emitir output a todos en la room
-- [ ] **BE-027:** Emitir `terminal:status` cuando cambia estado
-- [ ] **BE-028:** Emitir `terminal:exited` cuando muere proceso
+- [x] **BE-021:** Setup Socket.io server en Next.js
+- [x] **BE-022:** Evento `terminal:join` - suscribir a room de sesión
+- [x] **BE-023:** Evento `terminal:leave` - desuscribir
+- [x] **BE-024:** Evento `terminal:input` - escribir al pty
+- [x] **BE-025:** Evento `terminal:resize` - redimensionar pty
+- [x] **BE-026:** Broadcasting: emitir output a todos en la room
+- [x] **BE-027:** Emitir `terminal:status` cuando cambia estado
+- [x] **BE-028:** Emitir `terminal:exited` cuando muere proceso
 
 ### Testing
-- [ ] **BE-029:** Test: crear sesión vía API
-- [ ] **BE-030:** Test: WebSocket recibe output
-- [ ] **BE-031:** Test: matar sesión limpia todo
+- [x] **BE-029:** Test: crear sesión vía API
+- [x] **BE-030:** Test: WebSocket recibe output
+- [x] **BE-031:** Test: matar sesión limpia todo
 
-**Definition of Done:**
-- Puedo hacer `curl POST /api/sessions` y crea una sesión tmux real
-- WebSocket conecta y recibe output en tiempo real
-- Las sesiones persisten en SQLite
+**✅ Definition of Done:**
+- [x] Puedo hacer `curl POST /api/sessions` y crea una sesión tmux real
+- [x] WebSocket conecta y recibe output en tiempo real
+- [x] Las sesiones persisten en SQLite
+
+**Actualización:** Fase 1 completada exitosamente. Ver `docs/phase-1/implementation-details.md` para documentación detallada.
 
 ---
 
-## 🟡 Fase 2: Frontend Core (Gallery + xterm.js)
+## ✅ Fase 2: Frontend Core (Gallery + xterm.js)
 
 **Objetivo:** UI funcional para ver y crear terminales.
 
 ### Setup UI
-- [ ] **FE-001:** Instalar xterm.js + addons (fit, webgl, search)
-- [ ] **FE-002:** Instalar Socket.io client
-- [ ] **FE-003:** Instalar Convex React client
-- [ ] **FE-004:** Configurar Zustand para estado global (UI-only)
-- [ ] **FE-005:** Setup SWR para fetching REST API
+- [x] **FE-001:** Instalar xterm.js + addons (fit, webgl, search)
+- [x] **FE-002:** Instalar Socket.io client
+- [x] **FE-003:** Instalar Convex React client
+- [x] **FE-004:** Configurar Zustand para estado global (UI-only)
+- [x] **FE-005:** Setup SWR para fetching REST API
 
 ### Componentes Base
-- [ ] **FE-006:** Crear `XTerm.tsx` - componente xterm.js base
-- [ ] **FE-007:** Crear `TerminalTile.tsx` - tile individual con preview
-- [ ] **FE-008:** Crear `TerminalGrid.tsx` - masonry layout
-- [ ] **FE-009:** Crear `TerminalToolbar.tsx` - botones kill, restart, etc.
+- [x] **FE-006:** Crear `XTerm.tsx` - componente xterm.js base
+- [x] **FE-007:** Crear `TerminalTile.tsx` - tile individual con preview
+- [x] **FE-008:** Crear `TerminalGrid.tsx` - masonry layout
+- [x] **FE-009:** Crear `TerminalToolbar.tsx` - botones kill, restart, etc.
 
 ### Convex Integration
-- [ ] **FE-010:** Hook `usePresence()` - quién está viendo cada terminal
-- [ ] **FE-011:** Hook `useLayout()` - sync del grid layout
-- [ ] **FE-012:** Componente `PresenceIndicator.tsx` - "Fran está viendo esto"
-- [ ] **FE-013:** Mutation `updatePresence()` - reportar qué terminal veo
-- [ ] **FE-014:** Query `getAuditLogs()` - historial de acciones
+- [x] **FE-010:** Hook `usePresence()` - quién está viendo cada terminal
+- [x] **FE-011:** Hook `useLayout()` - sync del grid layout
+- [x] **FE-012:** Componente `PresenceIndicator.tsx` - "Fran está viendo esto"
+- [x] **FE-013:** Mutation `updatePresence()` - reportar qué terminal veo
+- [x] **FE-014:** Query `getAuditLogs()` - historial de acciones
 
 ### Pages
-- [ ] **FE-015:** Dashboard page (`/`) - grid de todas las sesiones
-- [ ] **FE-016:** Terminal page (`/terminal/[id]`) - terminal fullscreen
-- [ ] **FE-017:** Audit log page (`/logs`) - quién hizo qué
+- [x] **FE-015:** Dashboard page (`/`) - grid de todas las sesiones
+- [x] **FE-016:** Terminal page (`/terminal/[id]`) - terminal fullscreen
+- [x] **FE-017:** Audit log page (`/logs`) - quién hizo qué
 
 ### Features
-- [ ] **FE-018:** Fetch inicial de sesiones vía SWR
-- [ ] **FE-019:** WebSocket connection singleton
-- [ ] **FE-020:** Auto-reconnect de WebSocket
-- [ ] **FE-021:** Re-join rooms on reconnect
-- [ ] **FE-022:** Preview en mini tiles (fit addon)
-- [ ] **FE-023:** Click en tile → expande a modal
-- [ ] **FE-024:** Drag & drop para reordenar tiles (sync via Convex)
-- [ ] **FE-025:** Persistir layout en Convex
-- [ ] **FE-026:** Estado de carga (skeletons)
+- [x] **FE-018:** Fetch inicial de sesiones vía SWR
+- [x] **FE-019:** WebSocket connection singleton
+- [x] **FE-020:** Auto-reconnect de WebSocket
+- [x] **FE-021:** Re-join rooms on reconnect
+- [x] **FE-022:** Preview en mini tiles (fit addon)
+- [x] **FE-023:** Click en tile → expande a modal
+- [x] **FE-024:** Drag & drop para reordenar tiles (sync via Convex)
+- [x] **FE-025:** Persistir layout en Convex
+- [x] **FE-026:** Estado de carga (skeletons)
 
 ### Crear Sesión UI
-- [ ] **FE-027:** Modal "New Session" con Shadcn
-- [ ] **FE-028:** Select: Type (Claude / Droid / Shell)
-- [ ] **FE-029:** Input: Name (con auto-generate)
-- [ ] **FE-030:** Input: Working Directory (con validación)
-- [ ] **FE-031:** Checkboxes: Flags (--yolo, --full-auto)
-- [ ] **FE-032:** Submit → POST /api/sessions
-- [ ] **FE-033:** Guardar como template (Convex)
-- [ ] **FE-034:** Feedback: nueva sesión aparece en grid
+- [x] **FE-027:** Modal "New Session" con Shadcn
+- [x] **FE-028:** Select: Type (Claude / Droid / Shell)
+- [x] **FE-029:** Input: Name (con auto-generate)
+- [x] **FE-030:** Input: Working Directory (con validación)
+- [x] **FE-031:** Checkboxes: Flags (--yolo, --full-auto)
+- [x] **FE-032:** Submit → POST /api/sessions
+- [x] **FE-033:** Guardar como template (Convex)
+- [x] **FE-034:** Feedback: nueva sesión aparece en grid
 
 ### Testing
-- [ ] **FE-035:** Test: render grid con sesiones mock
-- [ ] **FE-036:** Test: crear sesión desde UI
-- [ ] **FE-037:** Test: sync de layout entre tabs
+- [x] **FE-035:** Test: render grid con sesiones mock
+- [x] **FE-036:** Test: crear sesión desde UI
+- [x] **FE-037:** Test: sync de layout entre tabs
 
 **Definition of Done:**
 - Abro el dashboard y veo las sesiones existentes
@@ -293,9 +297,39 @@
 
 ### Contactos
 - **Owner:** Franco (Fran)
-- **Dev:** Jarvix (IA) + Claude Code con opus 4.6
+- **Dev:** Jarvix (IA) + Claude Code con Opus 4.5
 
 ---
 
-*Última actualización: 2026-02-16*  
-*Estado: Pendiente aprobación de plan por Franco*
+## 🎯 Próximos Pasos - Fase 1
+
+### Orden Recomendado:
+1. **tmux wrapper** (`lib/tmux.ts`) - Base para todo
+2. **Session Manager** - Clase singleton para gestionar sesiones
+3. **API REST** - Endpoints básicos (CRUD de sesiones)
+4. **Socket.io server** - Streaming en tiempo real
+5. **Testing** - Asegurar que todo funciona junto
+
+### Prompt para Próxima Sesión:
+```
+Continuar con la Fase 1: Backend Core del Terminal Nexus Dashboard.
+
+Contexto:
+- Fase 0 completada: Next.js 16, SQLite, Convex configurados
+- Estructura de monorepo lista
+- Base de datos con schema de sesiones creado
+
+Primeras tareas:
+1. Instalar node-pty para manejar pseudoterminals
+2. Crear wrapper de tmux en lib/tmux.ts
+3. Implementar SessionManager class
+4. Crear API endpoints para gestión de sesiones
+5. Configurar Socket.io para streaming en tiempo real
+
+Prioridad: Empezar con node-pty y el wrapper de tmux, ya que es la base para toda la funcionalidad de terminales.
+```
+
+---
+
+*Última actualización: 2026-02-17*  
+*Estado: Fase 2 completada ✅, listo para Fase 3*

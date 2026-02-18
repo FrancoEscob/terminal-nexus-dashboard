@@ -1,0 +1,44 @@
+@import 'xterm/css/xterm.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 224 47% 8%;
+    --foreground: 210 40% 98%;
+    --card: 223 38% 11%;
+    --card-foreground: 210 40% 98%;
+    --popover: 223 38% 11%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 196 100% 58%;
+    --primary-foreground: 224 47% 8%;
+    --secondary: 217 24% 17%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 217 19% 23%;
+    --muted-foreground: 215 16% 72%;
+    --accent: 171 84% 44%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 80% 58%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 24% 24%;
+    --input: 217 24% 24%;
+    --ring: 196 100% 58%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 224 47% 8%;
+    --foreground: 210 40% 98%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
