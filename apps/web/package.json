@@ -11,7 +11,7 @@
     "test:watch": "vitest",
     "type-check": "tsc --noEmit",
     "db:generate": "drizzle-kit generate:sqlite",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "drizzle-kit push:sqlite",
     "db:push": "drizzle-kit push:sqlite",
     "db:studio": "drizzle-kit studio",
     "analyze": "next experimental-analyze"
