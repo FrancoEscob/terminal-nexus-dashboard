@@ -162,8 +162,22 @@ export class SessionManager {
 
   async resize(sessionId: string, cols: number, rows: number): Promise<void> {
     const session = this.activeSessions.get(sessionId);
+
     if (!session) {
-      throw new Error(`Session not found: ${sessionId}`);
+      const [persistedSession] = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1);
+      if (!persistedSession) {
+        throw new Error(`Session not found: ${sessionId}`);
+      }
+
+      if (persistedSession.status !== 'running') {
+        return;
+      }
+
+      await TmuxWrapper.resizeSession(persistedSession.name, cols, rows, persistedSession.socketPath);
+      await db.update(sessions)
+        .set({ updatedAt: new Date() })
+        .where(eq(sessions.id, sessionId));
+      return;
     }
 
     try {
