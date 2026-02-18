@@ -1,8 +1,9 @@
 import { spawn } from 'node-pty';
 import { promises as fs } from 'fs';
 import path from 'path';
+import os from 'os';
 
-const TMUX_SOCKET_DIR = '/tmp/terminal-nexus';
+const TMUX_SOCKET_DIR = path.join(os.tmpdir(), 'terminal-nexus');
 
 export interface TmuxSessionConfig {
   name: string;
@@ -34,6 +35,23 @@ export class TmuxWrapper {
 
   static async initialize(): Promise<void> {
     if (this.initialized) return;
+    
+    // Check if tmux is available
+    try {
+      const { spawn } = require('child_process');
+      await new Promise<void>((resolve, reject) => {
+        const testProcess = spawn('tmux', ['-V'], { stdio: 'ignore' });
+        testProcess.on('exit', (code) => {
+          if (code === 0) resolve();
+          else reject(new Error('tmux not found'));
+        });
+        testProcess.on('error', reject);
+      });
+    } catch (error) {
+      throw new Error(
+        'tmux is not installed or not available. On Windows, please install WSL (Windows Subsystem for Linux) and tmux, or use a Linux/macOS environment.'
+      );
+    }
     
     await this.ensureSocketDir();
     this.initialized = true;
