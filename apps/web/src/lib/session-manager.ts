@@ -201,6 +201,63 @@ export class SessionManager {
     return this.activeSessions.get(sessionId);
   }
 
+  async ensureActiveSession(sessionId: string): Promise<Session | undefined> {
+    const existing = this.activeSessions.get(sessionId);
+    if (existing) return existing;
+
+    const [sessionData] = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1);
+    if (!sessionData || sessionData.status !== 'running') {
+      return undefined;
+    }
+
+    const tmuxSessions = await TmuxWrapper.listSessions(sessionData.socketPath);
+    const tmuxSession = tmuxSessions.find((entry) => entry.name === sessionData.name);
+    if (!tmuxSession) {
+      return undefined;
+    }
+
+    const tmuxBinary = TmuxWrapper.getTmuxBinary();
+    const pty = spawn(tmuxBinary, [
+      '-S', sessionData.socketPath,
+      'attach-session',
+      '-t', sessionData.name,
+    ], {
+      name: 'xterm-color',
+      cols: 80,
+      rows: 24,
+      cwd: sessionData.workdir,
+      env: {
+        ...process.env,
+        PATH: process.env.PATH || '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+        TMUX: '',
+        TMUX_PANE: '',
+      },
+    });
+
+    const recoveredSession: Session = {
+      id: sessionData.id,
+      name: sessionData.name,
+      type: sessionData.type as any,
+      workdir: sessionData.workdir,
+      command: sessionData.command,
+      flags: JSON.parse(sessionData.flags || '[]'),
+      status: 'running',
+      pid: pty.pid,
+      socketPath: sessionData.socketPath,
+      pty,
+      tmuxSession: sessionData.name,
+      createdAt: sessionData.createdAt,
+      updatedAt: sessionData.updatedAt,
+      exitCode: sessionData.exitCode ?? undefined,
+    };
+
+    this.activeSessions.set(sessionData.id, recoveredSession);
+    this.sessionOutputs.set(sessionData.id, []);
+    this.setupPtyHandlers(sessionData.id, pty);
+
+    return recoveredSession;
+  }
+
   getAll(): Session[] {
     return Array.from(this.activeSessions.values());
   }

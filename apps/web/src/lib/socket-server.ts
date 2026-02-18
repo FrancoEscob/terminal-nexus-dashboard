@@ -34,7 +34,7 @@ export const SocketHandler = (req: NextApiRequest, res: NextApiResponse & { sock
     // Handle joining a terminal session
     socket.on('terminal:join', async (sessionId: string) => {
       try {
-        const session = sessionManager.get(sessionId);
+        const session = await sessionManager.ensureActiveSession(sessionId);
         if (!session) {
           socket.emit('terminal:status', sessionId, 'error');
           return;
@@ -68,8 +68,8 @@ export const SocketHandler = (req: NextApiRequest, res: NextApiResponse & { sock
     });
 
     // Handle terminal input
-    socket.on('terminal:input', (sessionId: string, data: string) => {
-      const session = sessionManager.get(sessionId);
+    socket.on('terminal:input', async (sessionId: string, data: string) => {
+      const session = await sessionManager.ensureActiveSession(sessionId);
       if (session && session.pty) {
         session.pty.write(data);
       }
