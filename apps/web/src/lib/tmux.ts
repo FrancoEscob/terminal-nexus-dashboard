@@ -73,17 +73,11 @@ export class TmuxWrapper {
     
     // Check if tmux is available
     try {
-      await new Promise<void>((resolve, reject) => {
-        const testProcess = spawnProcess('tmux', ['-V'], { stdio: 'ignore' });
-        testProcess.on('exit', (code) => {
-          if (code === 0) resolve();
-          else reject(new Error('tmux not found'));
-        });
-        testProcess.on('error', reject);
-      });
+      await this.runTmux(['-V']);
     } catch (error) {
+      const details = error instanceof Error ? error.message : String(error);
       throw new Error(
-        'tmux is not installed or not available. On Windows, please install WSL (Windows Subsystem for Linux) and tmux, or use a Linux/macOS environment.'
+        `tmux is not installed or not available (${details}). On Windows, run the app inside WSL with tmux installed, or use Linux/macOS.`
       );
     }
     
