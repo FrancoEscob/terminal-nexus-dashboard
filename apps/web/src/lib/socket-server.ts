@@ -20,6 +20,7 @@ export const SocketHandler = (req: NextApiRequest, res: NextApiResponse & { sock
 
   // Store user sessions
   const users = new Map<string, SocketUser>();
+  const forwardedSessions = new Set<string>();
 
   io.on('connection', (socket) => {
     console.log(`Client connected: ${socket.id}`);
@@ -46,6 +47,22 @@ export const SocketHandler = (req: NextApiRequest, res: NextApiResponse & { sock
 
         // Send current status
         socket.emit('terminal:status', sessionId, session.status);
+
+        // Ensure this session is wired for realtime room forwarding even if it was
+        // created before Socket.io initialized.
+        if (session.pty && !forwardedSessions.has(session.id)) {
+          forwardedSessions.add(session.id);
+
+          session.pty.onData((data) => {
+            io.to(`session:${session.id}`).emit('terminal:output', session.id, data);
+          });
+
+          session.pty.onExit(({ exitCode }) => {
+            io.to(`session:${session.id}`).emit('terminal:exited', session.id, exitCode);
+            io.to(`session:${session.id}`).emit('terminal:status', session.id, exitCode === 0 ? 'stopped' : 'error');
+            forwardedSessions.delete(session.id);
+          });
+        }
 
         // Send recent output history
         const recentOutput = sessionManager.getRecentOutput(sessionId, 100);
@@ -99,49 +116,6 @@ export const SocketHandler = (req: NextApiRequest, res: NextApiResponse & { sock
       users.delete(socket.id);
     });
   });
-
-  // Extend session manager to emit socket events
-  const originalCreate = sessionManager.create.bind(sessionManager);
-  sessionManager.create = async (config) => {
-    const session = await originalCreate(config);
-    
-    // Set up real-time output forwarding
-    if (session.pty) {
-      session.pty.onData((data) => {
-        io.to(`session:${session.id}`).emit('terminal:output', session.id, data);
-      });
-    }
-    
-    // Set up exit event forwarding
-    if (session.pty) {
-      session.pty.onExit(({ exitCode }: { exitCode: number }) => {
-        io.to(`session:${session.id}`).emit('terminal:exited', session.id, exitCode);
-        io.to(`session:${session.id}`).emit('terminal:status', session.id, exitCode === 0 ? 'stopped' : 'error');
-      });
-    }
-    
-    // Broadcast session creation
-    io.emit('session:created', session);
-    
-    return session;
-  };
-
-  const originalKill = sessionManager.kill.bind(sessionManager);
-  sessionManager.kill = async (sessionId) => {
-    await originalKill(sessionId);
-    
-    // Broadcast session kill
-    io.emit('session:killed', sessionId);
-    io.to(`session:${sessionId}`).emit('terminal:status', sessionId, 'stopped');
-  };
-
-  const originalResize = sessionManager.resize.bind(sessionManager);
-  sessionManager.resize = async (sessionId, cols, rows) => {
-    await originalResize(sessionId, cols, rows);
-    
-    // Broadcast resize to all clients in session
-    io.to(`session:${sessionId}`).emit('terminal:resize', sessionId, cols, rows);
-  };
 
   res.socket.server.io = io;
   res.end();
