@@ -2,6 +2,7 @@ import { spawn } from 'node-pty';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
+import { spawn as spawnProcess } from 'child_process';
 
 const TMUX_SOCKET_DIR = path.join(os.tmpdir(), 'terminal-nexus');
 
@@ -25,6 +26,40 @@ export interface TmuxSessionInfo {
 export class TmuxWrapper {
   private static initialized = false;
 
+  private static runTmux(args: string[], options?: { cwd?: string }): Promise<{ stdout: string; stderr: string }> {
+    return new Promise((resolve, reject) => {
+      const child = spawnProcess('tmux', args, {
+        cwd: options?.cwd,
+        env: { ...process.env, TMUX: '', TMUX_PANE: '' },
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      child.stdout?.on('data', (chunk: Buffer | string) => {
+        stdout += chunk.toString();
+      });
+
+      child.stderr?.on('data', (chunk: Buffer | string) => {
+        stderr += chunk.toString();
+      });
+
+      child.on('error', (error) => {
+        reject(error);
+      });
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve({ stdout, stderr });
+          return;
+        }
+
+        const details = stderr.trim() || stdout.trim() || `exit code ${code}`;
+        reject(new Error(details));
+      });
+    });
+  }
+
   private static async ensureSocketDir(): Promise<void> {
     try {
       await fs.access(TMUX_SOCKET_DIR);
@@ -38,9 +73,8 @@ export class TmuxWrapper {
     
     // Check if tmux is available
     try {
-      const { spawn } = require('child_process');
       await new Promise<void>((resolve, reject) => {
-        const testProcess = spawn('tmux', ['-V'], { stdio: 'ignore' });
+        const testProcess = spawnProcess('tmux', ['-V'], { stdio: 'ignore' });
         testProcess.on('exit', (code) => {
           if (code === 0) resolve();
           else reject(new Error('tmux not found'));
@@ -62,24 +96,19 @@ export class TmuxWrapper {
 
     const { name, workdir, command, socketPath, cols = 80, rows = 24 } = config;
 
-    // Spawn tmux session via node-pty
-    const pty = spawn('tmux', [
-      '-S', socketPath,
-      'new-session',
-      '-d', // detached
-      '-s', name,
-      '-c', workdir,
-      command
-    ], {
-      name: 'xterm-color',
-      cols,
-      rows,
-      cwd: workdir,
-      env: { ...process.env, TMUX: '', TMUX_PANE: '' }
-    });
-
-    // Wait a bit for session to be created
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await this.runTmux(
+      [
+        '-S', socketPath,
+        'new-session',
+        '-d',
+        '-s', name,
+        '-c', workdir,
+        '-x', cols.toString(),
+        '-y', rows.toString(),
+        command,
+      ],
+      { cwd: workdir },
+    );
 
     // Verify session was created
     const sessions = await this.listSessions(socketPath);
@@ -118,39 +147,36 @@ export class TmuxWrapper {
   static async listSessions(socketPath: string): Promise<TmuxSessionInfo[]> {
     await this.initialize();
 
-    const pty = spawn('tmux', [
-      '-S', socketPath,
-      'list-sessions',
-      '-F', '#{session_id}:#{session_name}:#{session_created}:#{session_attached}:#{session_width}x#{session_height}'
-    ], {
-      env: { ...process.env, TMUX: '', TMUX_PANE: '' }
-    });
+    try {
+      const { stdout } = await this.runTmux([
+        '-S', socketPath,
+        'list-sessions',
+        '-F', '#{session_id}:#{session_name}:#{session_created}:#{session_attached}:#{session_width}x#{session_height}',
+      ]);
 
-    let output = '';
+      const lines = stdout.trim().split('\n').filter(line => line);
+      const sessions: TmuxSessionInfo[] = [];
 
-    return new Promise((resolve) => {
-      pty.onData((data) => {
-        output += data;
-      });
+      for (const line of lines) {
+        const [id, name, created, attached, size] = line.split(':');
+        sessions.push({
+          id,
+          name,
+          created,
+          attached,
+          size,
+        });
+      }
 
-      pty.onExit(() => {
-        const lines = output.trim().split('\n').filter(line => line);
-        const sessions: TmuxSessionInfo[] = [];
+      return sessions;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('no server running')) {
+        return [];
+      }
 
-        for (const line of lines) {
-          const [id, name, created, attached, size] = line.split(':');
-          sessions.push({
-            id,
-            name,
-            created,
-            attached,
-            size
-          });
-        }
-
-        resolve(sessions);
-      });
-    });
+      throw error;
+    }
   }
 
   static async capturePane(sessionName: string, socketPath: string, lines?: number): Promise<string> {
