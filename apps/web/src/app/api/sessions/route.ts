@@ -45,7 +45,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate workdir path
-    const validatedWorkdir = validateWorkdir(body.workdir);
+    let validatedWorkdir: string;
+    try {
+      validatedWorkdir = validateWorkdir(body.workdir);
+    } catch (error) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: error instanceof Error ? error.message : 'Invalid workdir',
+      }, { status: 400 });
+    }
     
     // Create session
     const session = await sessionManager.create({

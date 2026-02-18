@@ -1,4 +1,5 @@
 import { IPty } from 'node-pty';
+import fs from 'fs';
 import path from 'path';
 
 export interface SessionConfig {
@@ -116,6 +117,16 @@ export const ALLOWED_BASE_DIRS = [
 ];
 
 export function validateWorkdir(input: string): string {
+  const trimmed = input.trim();
+
+  if (!path.isAbsolute(trimmed)) {
+    throw new Error(`Invalid workdir: ${input} (must be an absolute path)`);
+  }
+
+  if (process.platform !== 'win32' && /^[A-Za-z]:\\/.test(trimmed)) {
+    throw new Error(`Invalid workdir: ${input} (Windows path used on non-Windows runtime)`);
+  }
+
   const resolved = path.resolve(input);
   const isAllowed = ALLOWED_BASE_DIRS.some(base => 
     resolved.startsWith(base)
@@ -123,6 +134,14 @@ export function validateWorkdir(input: string): string {
   
   if (!isAllowed) {
     throw new Error(`Invalid workdir: ${input} (outside allowed paths)`);
+  }
+
+  if (!fs.existsSync(resolved)) {
+    throw new Error(`Invalid workdir: ${input} (directory does not exist)`);
+  }
+
+  if (!fs.statSync(resolved).isDirectory()) {
+    throw new Error(`Invalid workdir: ${input} (not a directory)`);
   }
   
   return resolved;

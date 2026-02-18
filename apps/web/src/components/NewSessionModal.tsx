@@ -14,6 +14,12 @@ interface NewSessionModalProps {
 
 const typeOptions: SessionType[] = ['claude', 'droid', 'shell'];
 
+function getDefaultWorkdir(): string {
+  return navigator.platform.toLowerCase().includes('win')
+    ? 'C:\\Users\\frand\\Projects'
+    : '/home/fran/projects';
+}
+
 function isLikelyAbsolutePath(value: string): boolean {
   return /^[A-Za-z]:\\/.test(value) || value.startsWith('/');
 }
@@ -24,7 +30,7 @@ export function NewSessionModal({ isOpen, onClose, onCreated }: NewSessionModalP
 
   const [type, setType] = useState<SessionType>('shell');
   const [name, setName] = useState('');
-  const [workdir, setWorkdir] = useState('C:\\Users\\frand\\Projects');
+  const [workdir, setWorkdir] = useState(getDefaultWorkdir);
   const [command, setCommand] = useState('');
   const [yolo, setYolo] = useState(false);
   const [fullAuto, setFullAuto] = useState(false);
