@@ -20,7 +20,7 @@ type TerminalSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 let socket: TerminalSocket | null = null;
 let initialized = false;
 let reconnectHookAttached = false;
-const joinedSessions = new Set<string>();
+const joinedSessionCounts = new Map<string, number>();
 const outputListeners = new Set<(sessionId: string, data: string) => void>();
 const statusListeners = new Set<(sessionId: string, status: SessionStatus) => void>();
 const resizeListeners = new Set<(sessionId: string, cols: number, rows: number) => void>();
@@ -55,7 +55,8 @@ export async function getSocketClient(): Promise<TerminalSocket> {
 
   if (!reconnectHookAttached) {
     socket.on('connect', () => {
-      joinedSessions.forEach((sessionId) => {
+      joinedSessionCounts.forEach((count, sessionId) => {
+        if (count <= 0) return;
         socket?.emit('terminal:join', sessionId);
       });
     });
@@ -80,14 +81,25 @@ export async function getSocketClient(): Promise<TerminalSocket> {
 
 export async function joinSession(sessionId: string): Promise<void> {
   const client = await getSocketClient();
-  joinedSessions.add(sessionId);
-  client.emit('terminal:join', sessionId);
+  const currentCount = joinedSessionCounts.get(sessionId) ?? 0;
+  const nextCount = currentCount + 1;
+  joinedSessionCounts.set(sessionId, nextCount);
+
+  if (currentCount === 0) {
+    client.emit('terminal:join', sessionId);
+  }
 }
 
 export async function leaveSession(sessionId: string): Promise<void> {
   const client = await getSocketClient();
-  joinedSessions.delete(sessionId);
-  client.emit('terminal:leave', sessionId);
+  const currentCount = joinedSessionCounts.get(sessionId) ?? 0;
+  if (currentCount <= 1) {
+    joinedSessionCounts.delete(sessionId);
+    client.emit('terminal:leave', sessionId);
+    return;
+  }
+
+  joinedSessionCounts.set(sessionId, currentCount - 1);
 }
 
 export async function sendTerminalInput(sessionId: string, data: string): Promise<void> {
@@ -101,7 +113,7 @@ export async function sendTerminalResize(sessionId: string, cols: number, rows: 
 }
 
 export function getJoinedSessionsSnapshot(): string[] {
-  return Array.from(joinedSessions);
+  return Array.from(joinedSessionCounts.keys());
 }
 
 export function addTerminalOutputListener(
