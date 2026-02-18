@@ -15,9 +15,7 @@ interface NewSessionModalProps {
 const typeOptions: SessionType[] = ['claude', 'droid', 'shell'];
 
 function getDefaultWorkdir(): string {
-  return navigator.platform.toLowerCase().includes('win')
-    ? 'C:\\Users\\frand\\Projects'
-    : '/home/fran/projects';
+  return '/home/fran/projects';
 }
 
 function isLikelyAbsolutePath(value: string): boolean {

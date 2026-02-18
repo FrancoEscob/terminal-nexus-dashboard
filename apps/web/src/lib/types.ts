@@ -119,12 +119,12 @@ export const ALLOWED_BASE_DIRS = [
 export function validateWorkdir(input: string): string {
   const trimmed = input.trim();
 
-  if (!path.isAbsolute(trimmed)) {
-    throw new Error(`Invalid workdir: ${input} (must be an absolute path)`);
-  }
-
   if (process.platform !== 'win32' && /^[A-Za-z]:\\/.test(trimmed)) {
     throw new Error(`Invalid workdir: ${input} (Windows path used on non-Windows runtime)`);
+  }
+
+  if (!path.isAbsolute(trimmed)) {
+    throw new Error(`Invalid workdir: ${input} (must be an absolute path)`);
   }
 
   const resolved = path.resolve(input);
