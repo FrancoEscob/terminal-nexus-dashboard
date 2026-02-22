@@ -76,4 +76,24 @@ describe('TerminalModal', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('closes when pressing Escape', () => {
+    const onClose = vi.fn();
+
+    render(<TerminalModal session={session} onClose={onClose} onChanged={vi.fn()} />);
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not close when pressing another key', () => {
+    const onClose = vi.fn();
+
+    render(<TerminalModal session={session} onClose={onClose} onChanged={vi.fn()} />);
+
+    fireEvent.keyDown(window, { key: 'Enter' });
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
