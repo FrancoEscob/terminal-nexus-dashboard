@@ -6,6 +6,7 @@ import { sessions } from './db/schema';
 import { TmuxWrapper } from './tmux';
 import type { Session, SessionCreateRequest } from './types';
 import { eq } from 'drizzle-orm';
+import { logRuntimeLifecycle } from './runtime-lifecycle-logger';
 
 interface SessionCreateConfig extends SessionCreateRequest {
   id?: string;
@@ -33,6 +34,18 @@ export class SessionManager {
     
     // Generate session name
     const sessionName = config.name || `${config.type}-${sessionId.slice(0, 8)}`;
+
+    logRuntimeLifecycle({
+      event: 'session_create_requested',
+      sessionId,
+      sessionType: config.type,
+      runtime: 'tmux',
+      status: 'creating',
+      source: 'session-manager#create',
+      metadata: {
+        hasCustomId: Boolean(config.id),
+      },
+    });
     
     try {
       // Build command based on type
@@ -152,23 +165,60 @@ export class SessionManager {
         });
       }
 
+      logRuntimeLifecycle({
+        event: 'session_create_completed',
+        sessionId,
+        sessionType: config.type,
+        runtime: 'tmux',
+        status: 'running',
+        source: 'session-manager#create',
+      });
+
       return session;
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+
+      logRuntimeLifecycle({
+        event: 'session_create_failed',
+        sessionId,
+        sessionType: config.type,
+        runtime: 'tmux',
+        status: 'failed',
+        source: 'session-manager#create',
+        reason: message,
+        level: 'error',
+      });
+
       // Clean up on failure
       try {
         await TmuxWrapper.killSession(sessionName, socketPath);
       } catch {}
       
-      throw new Error(`Failed to create session: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Failed to create session: ${message}`);
     }
   }
 
   async kill(sessionId: string): Promise<void> {
     const session = this.activeSessions.get(sessionId);
 
+    logRuntimeLifecycle({
+      event: 'session_kill_requested',
+      sessionId,
+      runtime: 'tmux',
+      source: 'session-manager#kill',
+    });
+
     if (!session) {
       const [persistedSession] = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1);
       if (!persistedSession) {
+        logRuntimeLifecycle({
+          event: 'session_kill_missing',
+          sessionId,
+          runtime: 'tmux',
+          source: 'session-manager#kill',
+          reason: 'session_not_found',
+          level: 'warn',
+        });
         throw new Error(`Session not found: ${sessionId}`);
       }
 
@@ -191,6 +241,16 @@ export class SessionManager {
 
       this.activePtyPids.delete(sessionId);
       this.sessionOutputs.delete(sessionId);
+
+      logRuntimeLifecycle({
+        event: 'session_kill_completed_from_db',
+        sessionId,
+        sessionType: persistedSession.type as SessionCreateRequest['type'],
+        runtime: 'tmux',
+        status: 'stopped',
+        source: 'session-manager#kill',
+      });
+
       return;
     }
 
@@ -229,21 +289,70 @@ export class SessionManager {
       this.activeSessions.delete(sessionId);
       this.activePtyPids.delete(sessionId);
       this.sessionOutputs.delete(sessionId);
+
+      logRuntimeLifecycle({
+        event: 'session_kill_completed',
+        sessionId,
+        sessionType: session.type,
+        runtime: 'tmux',
+        status: 'stopped',
+        source: 'session-manager#kill',
+      });
     } catch (error) {
-      throw new Error(`Failed to kill session: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+
+      logRuntimeLifecycle({
+        event: 'session_kill_failed',
+        sessionId,
+        sessionType: session.type,
+        runtime: 'tmux',
+        status: 'failed',
+        source: 'session-manager#kill',
+        reason: message,
+        level: 'error',
+      });
+
+      throw new Error(`Failed to kill session: ${message}`);
     }
   }
 
   async resize(sessionId: string, cols: number, rows: number): Promise<void> {
     const session = this.activeSessions.get(sessionId);
 
+    logRuntimeLifecycle({
+      event: 'session_resize_requested',
+      sessionId,
+      sessionType: session?.type,
+      runtime: 'tmux',
+      source: 'session-manager#resize',
+      metadata: { cols, rows },
+    });
+
     if (!session) {
       const [persistedSession] = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1);
       if (!persistedSession) {
+        logRuntimeLifecycle({
+          event: 'session_resize_missing',
+          sessionId,
+          runtime: 'tmux',
+          source: 'session-manager#resize',
+          reason: 'session_not_found',
+          level: 'warn',
+        });
         throw new Error(`Session not found: ${sessionId}`);
       }
 
       if (persistedSession.status !== 'running') {
+        logRuntimeLifecycle({
+          event: 'session_resize_skipped',
+          sessionId,
+          sessionType: persistedSession.type as SessionCreateRequest['type'],
+          runtime: 'tmux',
+          status: persistedSession.status as Session['status'],
+          source: 'session-manager#resize',
+          reason: 'session_not_running',
+          level: 'warn',
+        });
         return;
       }
 
@@ -251,6 +360,17 @@ export class SessionManager {
       await db.update(sessions)
         .set({ updatedAt: new Date() })
         .where(eq(sessions.id, sessionId));
+
+      logRuntimeLifecycle({
+        event: 'session_resize_completed_from_db',
+        sessionId,
+        sessionType: persistedSession.type as SessionCreateRequest['type'],
+        runtime: 'tmux',
+        status: 'running',
+        source: 'session-manager#resize',
+        metadata: { cols, rows },
+      });
+
       return;
     }
 
@@ -266,8 +386,32 @@ export class SessionManager {
       }
 
       session.updatedAt = new Date();
+
+      logRuntimeLifecycle({
+        event: 'session_resize_completed',
+        sessionId,
+        sessionType: session.type,
+        runtime: 'tmux',
+        status: session.status,
+        source: 'session-manager#resize',
+        metadata: { cols, rows },
+      });
     } catch (error) {
-      throw new Error(`Failed to resize session: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+
+      logRuntimeLifecycle({
+        event: 'session_resize_failed',
+        sessionId,
+        sessionType: session.type,
+        runtime: 'tmux',
+        status: 'failed',
+        source: 'session-manager#resize',
+        reason: message,
+        metadata: { cols, rows },
+        level: 'error',
+      });
+
+      throw new Error(`Failed to resize session: ${message}`);
     }
   }
 
@@ -277,10 +421,28 @@ export class SessionManager {
 
   async ensureActiveSession(sessionId: string): Promise<Session | undefined> {
     const existing = this.activeSessions.get(sessionId);
-    if (existing) return existing;
+    if (existing) {
+      logRuntimeLifecycle({
+        event: 'session_reconnect_cache_hit',
+        sessionId,
+        sessionType: existing.type,
+        runtime: 'tmux',
+        status: existing.status,
+        source: 'session-manager#ensureActiveSession',
+      });
+      return existing;
+    }
 
     const [sessionData] = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1);
     if (!sessionData || sessionData.status !== 'running') {
+      logRuntimeLifecycle({
+        event: 'session_reconnect_unavailable',
+        sessionId,
+        runtime: 'tmux',
+        source: 'session-manager#ensureActiveSession',
+        reason: !sessionData ? 'session_not_found' : 'session_not_running',
+        level: 'warn',
+      });
       return undefined;
     }
 
@@ -290,6 +452,18 @@ export class SessionManager {
       await db.update(sessions)
         .set({ status: 'stopped', updatedAt: new Date() })
         .where(eq(sessions.id, sessionId));
+
+      logRuntimeLifecycle({
+        event: 'session_reconnect_tmux_missing',
+        sessionId,
+        sessionType: sessionData.type as SessionCreateRequest['type'],
+        runtime: 'tmux',
+        status: 'stopped',
+        source: 'session-manager#ensureActiveSession',
+        reason: 'tmux_session_not_found',
+        level: 'warn',
+      });
+
       return undefined;
     }
 
@@ -331,6 +505,15 @@ export class SessionManager {
     this.activeSessions.set(sessionData.id, recoveredSession);
     this.sessionOutputs.set(sessionData.id, []);
     this.setupPtyHandlers(sessionData.id, pty);
+
+    logRuntimeLifecycle({
+      event: 'session_reconnect_completed',
+      sessionId: sessionData.id,
+      sessionType: sessionData.type as SessionCreateRequest['type'],
+      runtime: 'tmux',
+      status: 'running',
+      source: 'session-manager#ensureActiveSession',
+    });
 
     return recoveredSession;
   }
@@ -381,6 +564,16 @@ export class SessionManager {
         session.status = exitCode === 0 ? 'stopped' : 'error';
         session.exitCode = exitCode;
         session.updatedAt = new Date();
+
+        logRuntimeLifecycle({
+          event: 'session_pty_exited',
+          sessionId,
+          sessionType: session.type,
+          runtime: 'tmux',
+          status: session.status,
+          exitCode,
+          source: 'session-manager#setupPtyHandlers',
+        });
 
         // Update database
         db.update(sessions)
@@ -455,6 +648,13 @@ export class SessionManager {
   async loadExistingSessions(): Promise<void> {
     try {
       const existingSessions = await db.select().from(sessions);
+
+      logRuntimeLifecycle({
+        event: 'session_bootstrap_started',
+        runtime: 'tmux',
+        source: 'session-manager#loadExistingSessions',
+        metadata: { totalPersistedSessions: existingSessions.length },
+      });
       
       for (const sessionData of existingSessions) {
         if (sessionData.status === 'running') {
@@ -503,20 +703,59 @@ export class SessionManager {
               this.activeSessions.set(sessionData.id, session);
               this.sessionOutputs.set(sessionData.id, []);
               this.setupPtyHandlers(sessionData.id, pty);
+
+              logRuntimeLifecycle({
+                event: 'session_bootstrap_reconnected',
+                sessionId: sessionData.id,
+                sessionType: sessionData.type as SessionCreateRequest['type'],
+                runtime: 'tmux',
+                status: 'running',
+                source: 'session-manager#loadExistingSessions',
+              });
             } else {
               await db.update(sessions)
                 .set({ status: 'stopped', updatedAt: new Date() })
                 .where(eq(sessions.id, sessionData.id));
+
+              logRuntimeLifecycle({
+                event: 'session_bootstrap_marked_stopped',
+                sessionId: sessionData.id,
+                sessionType: sessionData.type as SessionCreateRequest['type'],
+                runtime: 'tmux',
+                status: 'stopped',
+                source: 'session-manager#loadExistingSessions',
+                reason: 'tmux_session_not_found',
+                level: 'warn',
+              });
             }
           } catch (error) {
             // Mark as stopped if can't reconnect
             await db.update(sessions)
               .set({ status: 'stopped', updatedAt: new Date() })
               .where(eq(sessions.id, sessionData.id));
+
+            logRuntimeLifecycle({
+              event: 'session_bootstrap_failed',
+              sessionId: sessionData.id,
+              sessionType: sessionData.type as SessionCreateRequest['type'],
+              runtime: 'tmux',
+              status: 'failed',
+              source: 'session-manager#loadExistingSessions',
+              reason: error instanceof Error ? error.message : String(error),
+              level: 'error',
+            });
           }
         }
       }
     } catch (error) {
+      logRuntimeLifecycle({
+        event: 'session_bootstrap_crashed',
+        runtime: 'tmux',
+        status: 'failed',
+        source: 'session-manager#loadExistingSessions',
+        reason: error instanceof Error ? error.message : String(error),
+        level: 'error',
+      });
       console.error('Failed to load existing sessions:', error);
     }
   }

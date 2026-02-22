@@ -27,6 +27,19 @@ export function TerminalModal({ session, onClose, onChanged }: TerminalModalProp
     return () => setMounted(false);
   }, []);
 
+  useEffect(() => {
+    if (!mounted) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      onClose();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mounted, onClose]);
+
   const handleKill = async () => {
     if (!window.confirm('¿Seguro que quieres matar esta sesión?')) return;
     await killSession();

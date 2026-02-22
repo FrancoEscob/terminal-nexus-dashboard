@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { sessions } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import type { ApiResponse, SessionCreateRequest } from '@/lib/types';
+import { logRuntimeLifecycle } from '@/lib/runtime-lifecycle-logger';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -13,6 +14,13 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
+    logRuntimeLifecycle({
+      event: 'api_session_restart_requested',
+      sessionId: id,
+      runtime: 'tmux',
+      source: 'api/sessions/[id]/restart#POST',
+    });
+
     const [persistedSession] = await db
       .select()
       .from(sessions)
@@ -20,6 +28,15 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       .limit(1);
 
     if (!persistedSession) {
+      logRuntimeLifecycle({
+        event: 'api_session_restart_missing',
+        sessionId: id,
+        runtime: 'tmux',
+        source: 'api/sessions/[id]/restart#POST',
+        reason: 'session_not_found',
+        level: 'warn',
+      });
+
       return NextResponse.json<ApiResponse>({
         success: false,
         error: 'Session not found'
@@ -59,6 +76,15 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     // Create new session with same config
     const newSession = await sessionManager.create(sessionConfig);
 
+    logRuntimeLifecycle({
+      event: 'api_session_restart_completed',
+      sessionId: newSession.id,
+      sessionType: newSession.type,
+      runtime: 'tmux',
+      status: newSession.status,
+      source: 'api/sessions/[id]/restart#POST',
+    });
+
     return NextResponse.json<ApiResponse>({
       success: true,
       message: 'Session restarted successfully',
@@ -76,6 +102,14 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       }
     });
   } catch (error) {
+    logRuntimeLifecycle({
+      event: 'api_session_restart_failed',
+      runtime: 'tmux',
+      status: 'failed',
+      source: 'api/sessions/[id]/restart#POST',
+      reason: error instanceof Error ? error.message : 'Failed to restart session',
+      level: 'error',
+    });
     console.error('Error restarting session:', error);
     return NextResponse.json<ApiResponse>({
       success: false,
