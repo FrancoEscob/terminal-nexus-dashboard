@@ -1,5 +1,19 @@
 # Prompt para Siguiente Sesión - Fase 3: Interactividad Bidireccional
 
+## ⚠️ Actualización (2026-02-18)
+
+Este prompt de Fase 3 quedó **obsoleto** por el Refactor V2.
+
+Usar en su lugar:
+
+- `docs/analysis-extended/prompt-refactor-siguiente-sesion.md`
+
+Y como documento técnico base:
+
+- `docs/analysis-extended/refactor-v2-master-plan.md`
+
+---
+
 Continuar con la Fase 3: Interactividad Bidireccional del Terminal Nexus Dashboard.
 
 Contexto:

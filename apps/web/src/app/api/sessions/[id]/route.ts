@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sessionManager } from '@/lib/session-manager';
+import { db } from '@/lib/db';
+import { sessions } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import type { ApiResponse, SessionUpdateRequest } from '@/lib/types';
 
 interface RouteParams {
@@ -9,29 +12,50 @@ interface RouteParams {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    const session = sessionManager.get(id);
+    const session = await sessionManager.ensureActiveSession(id);
+    const [persistedSession] = await db.select().from(sessions).where(eq(sessions.id, id)).limit(1);
     
-    if (!session) {
+    if (!session && !persistedSession) {
       return NextResponse.json<ApiResponse>({
         success: false,
         error: 'Session not found'
       }, { status: 404 });
     }
 
+    const sessionData = session ?? {
+      id,
+      name: persistedSession!.name,
+      type: persistedSession!.type,
+      workdir: persistedSession!.workdir,
+      command: persistedSession!.command,
+      flags: (() => {
+        try {
+          return JSON.parse(persistedSession!.flags || '[]') as string[];
+        } catch {
+          return [];
+        }
+      })(),
+      status: persistedSession!.status,
+      pid: persistedSession!.pid || undefined,
+      createdAt: persistedSession!.createdAt,
+      updatedAt: persistedSession!.updatedAt,
+      exitCode: persistedSession!.exitCode ?? undefined,
+    };
+
     return NextResponse.json<ApiResponse>({
       success: true,
       data: {
-        id: session.id,
-        name: session.name,
-        type: session.type,
-        workdir: session.workdir,
-        command: session.command,
-        flags: session.flags,
-        status: session.status,
-        pid: session.pid,
-        createdAt: session.createdAt,
-        updatedAt: session.updatedAt,
-        exitCode: session.exitCode
+        id: sessionData.id,
+        name: sessionData.name,
+        type: sessionData.type,
+        workdir: sessionData.workdir,
+        command: sessionData.command,
+        flags: sessionData.flags,
+        status: sessionData.status,
+        pid: sessionData.pid,
+        createdAt: sessionData.createdAt,
+        updatedAt: sessionData.updatedAt,
+        exitCode: sessionData.exitCode
       }
     });
   } catch (error) {
@@ -46,15 +70,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    
-    // Check if session exists
-    const session = sessionManager.get(id);
-    if (!session) {
-      return NextResponse.json<ApiResponse>({
-        success: false,
-        error: 'Session not found'
-      }, { status: 404 });
-    }
 
     // Kill the session
     await sessionManager.kill(id);
@@ -64,10 +79,18 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       message: 'Session killed successfully'
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to kill session';
+    if (message.includes('Session not found')) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: 'Session not found'
+      }, { status: 404 });
+    }
+
     console.error('Error killing session:', error);
     return NextResponse.json<ApiResponse>({
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to kill session'
+      error: message
     }, { status: 500 });
   }
 }
@@ -76,15 +99,6 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     const body = await request.json() as SessionUpdateRequest;
-    
-    // Check if session exists
-    const session = sessionManager.get(id);
-    if (!session) {
-      return NextResponse.json<ApiResponse>({
-        success: false,
-        error: 'Session not found'
-      }, { status: 404 });
-    }
 
     // Handle resize
     if (body.cols && body.rows) {
@@ -102,10 +116,18 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       message: 'Session updated successfully'
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to update session';
+    if (message.includes('Session not found')) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: 'Session not found'
+      }, { status: 404 });
+    }
+
     console.error('Error updating session:', error);
     return NextResponse.json<ApiResponse>({
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to update session'
+      error: message
     }, { status: 500 });
   }
 }

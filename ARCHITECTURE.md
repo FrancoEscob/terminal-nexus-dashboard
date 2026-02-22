@@ -6,6 +6,77 @@
 
 ---
 
+## 🔄 Arquitectura V2 (2026-02-18) — Canonical para próximos cambios
+
+> Esta sección define la arquitectura objetivo del refactor y prevalece sobre el diseño legacy descrito más abajo.
+
+## A) Problema arquitectural actual
+
+Hoy el flujo principal de sesiones usa `tmux new-session -d` + `tmux attach-session` dentro de `node-pty`.  
+Esto mezcla dos lifecycles (sesión tmux + pty attach) y provoca estados frágiles, especialmente en sesiones Claude (`EXITED` prematuro).
+
+## B) Nuevo diseño por capas
+
+### 1. Runtime abstraction layer
+- Introducir `TerminalRuntime` como contrato único de ejecución.
+- Drivers previstos:
+  - `DirectPtyRuntime` (**default**)
+  - `TmuxRuntime` (fallback/compat)
+  - `VibeRuntime` (PoC experimental)
+
+### 2. Session Orchestrator
+- `session-manager` pasa a coordinar lifecycle y persistencia.
+- Estado explícito: `creating | starting | running | reconnecting | exited | failed`.
+
+### 3. Transport layer
+- `socket-server` deja de depender de `session.pty` directo como única fuente.
+- Se suscribe a eventos del runtime y emite output/status/exited de forma homogénea.
+
+### 4. UI layout layer (Flex Grid)
+- `TerminalGrid` evoluciona de orden lineal (`string[]`) a layout con geometría (`x,y,w,h`).
+- Tiles inline interactivas con drag + resize + reflow.
+- Fullscreen queda opcional.
+
+## C) Mapa de archivos a tocar en el refactor
+
+### Núcleo backend
+- `apps/web/src/lib/session-manager.ts`
+- `apps/web/src/lib/tmux.ts`
+- `apps/web/src/lib/socket-server.ts`
+- `apps/web/src/lib/types.ts`
+
+### Nuevos módulos backend
+- `apps/web/src/lib/runtime/terminal-runtime.ts`
+- `apps/web/src/lib/runtime/direct-pty-runtime.ts`
+- `apps/web/src/lib/runtime/runtime-factory.ts`
+- `apps/web/src/lib/runtime/vibe-runtime.ts` (opcional PoC)
+
+### API
+- `apps/web/src/app/api/sessions/route.ts`
+- `apps/web/src/app/api/sessions/[id]/route.ts`
+- `apps/web/src/app/api/sessions/[id]/restart/route.ts`
+- `apps/web/src/app/api/sessions/[id]/resize/route.ts`
+
+### Frontend
+- `apps/web/src/components/TerminalGrid.tsx`
+- `apps/web/src/components/TerminalTile.tsx`
+- `apps/web/src/components/TerminalModal.tsx`
+- `apps/web/src/components/XTerm.tsx`
+- `apps/web/src/hooks/use-layout.ts`
+- `apps/web/src/lib/stores/ui-store.ts`
+- `apps/web/src/lib/socket-client.ts`
+
+## D) Referencias externas adoptadas (como guía)
+- **VibeTunnel:** patrones de runtime PTY, lifecycle robusto, auth/remoto.
+- **tmuxwatch:** patrones de wrapper tmux, captura y debug de sesiones.
+
+## E) Criterio arquitectural de éxito V2
+1. Claude deja de salir `EXITED` por diseño de runtime.
+2. UI operable inline en grid sin modal obligatorio.
+3. Fullscreen/modal cierra correctamente por click afuera y `Esc`.
+
+---
+
 ## 1. Overview de Arquitectura
 
 ### 1.1 Principios

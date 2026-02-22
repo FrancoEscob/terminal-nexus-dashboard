@@ -5,6 +5,32 @@
 
 ---
 
+## 🔄 Actualización V2 (2026-02-18)
+
+Antes de hacer rollout público con Cloudflare, completar primero:
+1. Fix modal close/minimize (click afuera + `Esc`).
+2. Fix runtime Claude `EXITED` en entorno local.
+3. Refactor base según `docs/analysis-extended/refactor-v2-master-plan.md`.
+
+### Nota importante de WebSocket en esta app
+El socket está montado en:
+
+`/api/socket-io`
+
+No usar `/socket.io/` en documentación nueva del proyecto.
+
+### Ingress recomendado (actualizado)
+```yaml
+ingress:
+  - hostname: terminalnexus.tudominio.com
+    service: http://localhost:3000
+  - service: http_status:404
+```
+
+Con Socket.io en el mismo host/puerto, Cloudflare enruta también `/api/socket-io` sin regla separada.
+
+---
+
 ## 1. Pre-requisitos
 
 ```bash
@@ -72,12 +98,7 @@ ingress:
   - hostname: terminalnexus.tudominio.com
     service: http://localhost:3000
     
-  # Regla 2: WebSocket (mismo dominio, Socket.io maneja el path /socket.io/)
-  - hostname: terminalnexus.tudominio.com
-    service: http://localhost:3000
-    path: /socket.io/
-    
-  # Regla 3: Catch-all (404)
+  # Regla 2: Catch-all (404)
   - service: http_status:404
 ```
 
@@ -147,7 +168,7 @@ sudo cloudflared tunnel run --loglevel debug terminal-nexus
 
 ### WebSocket no funciona
 - Asegurar que Cloudflare proxy está ON (nube naranja en DNS)
-- Verificar que el path `/socket.io/` está en el config
+- Verificar que la app responde en `/api/socket-io` (sin regla separada de ingress)
 - Revisar headers: `Upgrade: websocket`, `Connection: Upgrade`
 
 ### Error 502

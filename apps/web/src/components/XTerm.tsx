@@ -12,6 +12,12 @@ import {
 } from '@/lib/socket-client';
 import { useUiStore } from '@/lib/stores/ui-store';
 
+const DEVICE_ATTRIBUTE_RESPONSE_PATTERNS = [
+  /\x1b\[\?1;2c/g,
+  /\x1b\[>\d+;\d+;\d+c/g,
+  /\x1b\]7;file:\/\/[^\x07\x1b]*(?:\x07|\x1b\\)/g,
+];
+
 interface XTermProps {
   sessionId: string;
   readOnly?: boolean;
@@ -101,7 +107,16 @@ export function XTerm({
 
       if (!readOnly) {
         terminal.onData((data: string) => {
-          void sendTerminalInput(sessionId, data);
+          const sanitized = DEVICE_ATTRIBUTE_RESPONSE_PATTERNS.reduce(
+            (value, pattern) => value.replace(pattern, ''),
+            data,
+          );
+
+          if (!sanitized) {
+            return;
+          }
+
+          void sendTerminalInput(sessionId, sanitized);
         });
       }
 

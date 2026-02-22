@@ -171,24 +171,27 @@ export class TmuxWrapper {
   static async killSession(sessionName: string, socketPath: string): Promise<void> {
     await this.initialize();
 
-    const pty = spawn(this.tmuxBinary, [
-      '-S', socketPath,
-      'kill-session',
-      '-t', sessionName
-    ], {
-      env: this.getTmuxEnv()
-    });
+    try {
+      await this.runTmux([
+        '-S', socketPath,
+        'kill-session',
+        '-t', sessionName,
+      ]);
+    } catch (error) {
+      const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+      const alreadyStopped = (
+        message.includes("can't find session")
+        || message.includes('no server running')
+        || message.includes('failed to connect to server')
+        || message.includes('no such file or directory')
+      );
 
-    return new Promise((resolve, reject) => {
-      pty.onData(() => {});
-      pty.onExit(({ exitCode }) => {
-        if (exitCode === 0) {
-          resolve();
-        } else {
-          reject(new Error(`Failed to kill session ${sessionName}: exit code ${exitCode}`));
-        }
-      });
-    });
+      if (alreadyStopped) {
+        return;
+      }
+
+      throw new Error(`Failed to kill session ${sessionName}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   static async listSessions(socketPath: string): Promise<TmuxSessionInfo[]> {
@@ -218,7 +221,11 @@ export class TmuxWrapper {
       return sessions;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (message.includes('no server running')) {
+      if (
+        message.includes('no server running')
+        || message.includes('failed to connect to server')
+        || message.includes('no such file or directory')
+      ) {
         return [];
       }
 

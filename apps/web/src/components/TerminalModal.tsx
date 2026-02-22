@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { XTerm } from '@/components/XTerm';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { TerminalToolbar } from '@/components/TerminalToolbar';
@@ -18,7 +19,13 @@ interface TerminalModalProps {
 export function TerminalModal({ session, onClose, onChanged }: TerminalModalProps) {
   usePresenceTracker(session.id);
   const [clearSignal, setClearSignal] = useState(0);
+  const [mounted, setMounted] = useState(false);
   const { killSession, restartSession, clearSession, isMutating, error } = useSessionActions(session.id);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   const handleKill = async () => {
     if (!window.confirm('¿Seguro que quieres matar esta sesión?')) return;
@@ -41,9 +48,25 @@ export function TerminalModal({ session, onClose, onChanged }: TerminalModalProp
     appendAuditLog({ actor: 'fran', action: 'typed', sessionId: session.id, metadata: { command: 'clear' }, timestamp: Date.now() });
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true">
-      <div className="flex h-[85vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900">
+  if (!mounted) {
+    return null;
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className="flex h-[85vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-slate-700 px-4 py-3">
           <div>
             <h3 className="text-sm font-semibold text-slate-100">{session.name}</h3>
@@ -70,6 +93,7 @@ export function TerminalModal({ session, onClose, onChanged }: TerminalModalProp
           <XTerm sessionId={session.id} syncResize clearSignal={clearSignal} className="h-full w-full" />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

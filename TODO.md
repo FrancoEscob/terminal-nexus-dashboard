@@ -19,6 +19,74 @@
 
 ---
 
+## 🔄 Refactor V2 (2026-02-18) — Backlog oficial desde ahora
+
+> Este bloque tiene prioridad sobre fases anteriores para resolver bugs críticos y migrar a la arquitectura/UI nueva.
+
+### Objetivos V2
+- [ ] Fix definitivo: click afuera del modal fullscreen debe minimizar/cerrar.
+- [ ] Fix definitivo: sesiones Claude no deben salir `EXITED` al instante.
+- [ ] Migrar UX a **Flex Grid inline-first**.
+- [ ] Introducir **TerminalRuntime adapter** (`direct`, `tmux`, `vibe` experimental).
+
+### Etapas + commits esperados
+
+#### Stage 0 — Baseline y regresiones
+- [ ] **V2-000:** Agregar test de regresión modal close outside/escape
+- [ ] **V2-001:** Agregar test de smoke para lifecycle de sesión Claude
+- [ ] **V2-002:** Instrumentación de logs runtime lifecycle
+- [ ] **Commit:** `test: add regression coverage for modal outside-click and session startup lifecycle`
+- [ ] **Commit:** `chore: add structured runtime lifecycle logging`
+
+#### Stage 1 — Hotfix modal
+- [ ] **V2-010:** Asegurar close por click fuera del fullscreen
+- [ ] **V2-011:** Asegurar close por `Esc`
+- [ ] **V2-012:** Validar comportamiento en test UI
+- [ ] **Commit:** `fix(ui): close fullscreen modal on outside click and escape`
+- [ ] **Commit:** `test(ui): cover fullscreen close interactions`
+
+#### Stage 2 — Runtime abstraction
+- [ ] **V2-020:** Crear interfaz `TerminalRuntime`
+- [ ] **V2-021:** Crear `runtime-factory`
+- [ ] **V2-022:** Adaptar `session-manager` a runtime abstraction
+- [ ] **Commit:** `refactor(runtime): introduce terminal runtime interface and factory`
+- [ ] **Commit:** `refactor(core): migrate session manager to runtime abstraction`
+
+#### Stage 3 — Direct PTY fix Claude EXITED
+- [ ] **V2-030:** Implementar `DirectPtyRuntime`
+- [ ] **V2-031:** Activar `TERMINAL_RUNTIME=direct` como default
+- [ ] **V2-032:** Ajustar estados de lifecycle y motivos de salida
+- [ ] **Commit:** `feat(runtime): add direct pty runtime for claude droid and shell`
+- [ ] **Commit:** `fix(runtime): prevent premature exited state by decoupling attach lifecycle`
+
+#### Stage 4 — Flex Grid UI
+- [ ] **V2-040:** Migrar layout de orden simple a layout geométrico (`x,y,w,h`)
+- [ ] **V2-041:** Resize handles y drag & drop con reflow
+- [ ] **V2-042:** Terminales interactivas inline (fullscreen opcional)
+- [ ] **Commit:** `feat(ui): implement flex-grid layout engine with draggable resizable tiles`
+- [ ] **Commit:** `feat(ui): enable inline interactive terminals and optional fullscreen mode`
+
+#### Stage 5 — API + realtime + QA
+- [ ] **V2-050:** Normalizar endpoints a lifecycle V2
+- [ ] **V2-051:** Validar reconexión/replay output y resize
+- [ ] **V2-052:** Tests integración runtime/realtime
+- [ ] **Commit:** `refactor(api): align session endpoints with runtime lifecycle v2`
+- [ ] **Commit:** `test: add runtime and realtime integration scenarios`
+
+#### Stage 6 — PoC VibeRuntime (opcional recomendado)
+- [ ] **V2-060:** Adapter mínimo hacia VibeTunnel
+- [ ] **V2-061:** Benchmark comparativo vs runtime propio
+- [ ] **Commit:** `feat(runtime): add experimental vibetunnel adapter`
+- [ ] **Commit:** `docs(analysis): add comparative runtime benchmark results`
+
+### Definition of Done V2
+- [ ] Modal close outside + escape validado por tests.
+- [ ] Claude estable en smoke test repetido (mínimo 20 corridas).
+- [ ] Grid inline funcional con resize + drag + reflow.
+- [ ] Type-check/tests en verde y estado del repo consistente.
+
+---
+
 ## ✅ Fase 0: Setup y Arquitectura Base - COMPLETADA
 
 **Objetivo:** Estructura inicial del proyecto, tooling configurado.

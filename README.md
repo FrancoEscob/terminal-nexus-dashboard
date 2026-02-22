@@ -7,6 +7,33 @@
 
 ---
 
+## 🚨 Actualización V2 (2026-02-18) — Dirección oficial actual
+
+La implementación actual tiene dos problemas críticos no resueltos:
+
+1. **Cerrar/minimizar modal al click afuera** no es confiable.
+2. **Sesiones Claude salen `EXITED` al instante** por problemas de lifecycle/runtime.
+
+Por eso el proyecto entra en **Refactor V2** (por etapas, con commits pequeños y validación por stage).
+
+### Documentos canónicos para arrancar el refactor
+- Plan maestro: `docs/analysis-extended/refactor-v2-master-plan.md`
+- Prompt listo para nueva sesión: `docs/analysis-extended/prompt-refactor-siguiente-sesion.md`
+
+### Nueva visión de producto (V2)
+- UX principal: **Flex Grid inline-first** (terminales interactivas dentro del grid).
+- Fullscreen/modal: queda como modo opcional de foco.
+- Runtime: migración progresiva a **Direct PTY** con adapter de runtime.
+- `tmux`: pasa a fallback/compatibilidad, no camino principal para streaming.
+
+### Referencias externas adoptadas (como guía)
+- **VibeTunnel:** patrones de runtime PTY, auth/remoto y resiliencia.
+- **tmuxwatch:** patrones de wrapper tmux/snapshot/debug.
+
+> Nota: esta sección V2 prevalece sobre descripciones legacy de más abajo.
+
+---
+
 ## 🎯 Visión
 
 Un **Super Dashboard** para gestionar, monitorear e interactuar con múltiples sesiones de terminales (Claude Code, Droid, shells, etc.) en tiempo real desde el browser.

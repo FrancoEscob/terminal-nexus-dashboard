@@ -1,5 +1,30 @@
 # Windows Setup Instructions
 
+## 🔄 Windows Setup V2 (Refactor)
+
+El refactor V2 prioriza **Direct PTY Runtime** para evitar cierres prematuros de sesiones Claude.
+
+### Recomendación de ejecución en Windows
+- Ejecutar el backend dentro de **WSL2 Ubuntu**.
+- Mantener Windows solo como host/editor/browser.
+- Usar workdirs WSL válidos para sesiones (`/home/<user>/projects/...`).
+
+### Variables recomendadas en entorno de desarrollo
+```bash
+TERMINAL_RUNTIME=direct
+TERMINAL_ALLOWED_DIRS=/home/fran/projects,/tmp/experiments
+```
+
+### Cuándo usar tmux
+- Solo en modo fallback/compat (`TERMINAL_RUNTIME=tmux`) o debugging.
+- No usar como camino principal durante el fix de `CLAUDE EXITED`.
+
+### Nota sobre VibeTunnel
+- Se usará como referencia/PoC de runtime.
+- VibeTunnel todavía no soporta Windows nativo oficialmente; usar Linux/WSL para pruebas.
+
+---
+
 ## Requirements
 
 This application requires **tmux** to be installed and available. On Windows, you have two options:

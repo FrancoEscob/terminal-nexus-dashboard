@@ -19,15 +19,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }, { status: 400 });
     }
 
-    // Check if session exists
-    const session = sessionManager.get(id);
-    if (!session) {
-      return NextResponse.json<ApiResponse>({
-        success: false,
-        error: 'Session not found'
-      }, { status: 404 });
-    }
-
     // Resize the session
     await sessionManager.resize(id, body.cols, body.rows);
 
@@ -40,10 +31,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to resize session';
+    if (message.includes('Session not found')) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: 'Session not found'
+      }, { status: 404 });
+    }
+
     console.error('Error resizing session:', error);
     return NextResponse.json<ApiResponse>({
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to resize session'
+      error: message
     }, { status: 500 });
   }
 }

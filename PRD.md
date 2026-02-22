@@ -7,6 +7,100 @@
 
 ---
 
+## 🔄 Addendum PRD V2 (2026-02-18) — Canonical para el refactor
+
+> Esta sección actualiza prioridades y reemplaza la dirección de implementación previa para las fases siguientes.
+
+## A) Problemas críticos a resolver primero
+
+1. **Bug UX:** cerrar/minimizar terminal fullscreen al click afuera del modal no funciona de forma consistente.
+2. **Bug runtime:** sesiones de tipo Claude pasan a `EXITED` inmediatamente al crear.
+
+Sin resolver A1/A2 no se considera válido seguir con polish o deploy.
+
+## B) Objetivo de producto V2
+
+Cambiar de modelo **“tile preview + modal obligatorio”** a **“Flex Grid interactivo inline-first”**:
+
+- Todas las terminales operables dentro del grid.
+- Resize y drag/reordenamiento del layout en vivo.
+- Reflow de tiles vecinas al redimensionar.
+- Fullscreen como modo opcional de foco.
+- Click afuera en fullscreen/modal = minimizar/cerrar.
+
+## C) Requisitos funcionales V2 (nuevos/actualizados)
+
+### RF-V2-001: Flex Grid interactivo
+**Como** usuario, **quiero** una galería flexible y compacta con terminales interactivas **para** operar múltiples sesiones sin abrir modal siempre.
+
+**Criterios:**
+- Cada tile permite input/output en tiempo real.
+- Resize por tile con handle visual.
+- Drag & drop para mover tiles.
+- Auto-layout/reflow al cambiar tamaño.
+- Persistencia de layout (posición y tamaño).
+
+### RF-V2-002: Fullscreen opcional y confiable
+**Como** usuario, **quiero** abrir fullscreen solo cuando necesito foco **para** no depender del modal para operar.
+
+**Criterios:**
+- Botón “fullscreen” por tile.
+- Click fuera del overlay cierra/minimiza.
+- Tecla `Esc` cierra/minimiza.
+
+### RF-V2-003: Runtime robusto para Claude/Droid/Shell
+**Como** sistema, **quiero** evitar cierres instantáneos por diseño de runtime **para** no perder sesiones al iniciar.
+
+**Criterios:**
+- Runtime principal basado en PTY directo (sin `tmux attach` como path principal).
+- Lifecycle explícito (`creating`, `starting`, `running`, `failed`, `exited`).
+- Observabilidad de motivo de salida.
+
+### RF-V2-004: Runtime adapter extensible
+**Como** equipo, **quiero** desacoplar la capa runtime de la UI/API **para** poder probar backend propio vs externo sin reescribir todo.
+
+**Criterios:**
+- Interfaz `TerminalRuntime` única.
+- Driver default: `DirectPtyRuntime`.
+- Driver fallback: `TmuxRuntime`.
+- Driver experimental: `VibeRuntime` (PoC opcional).
+
+### RF-V2-005: Realtime estable
+**Como** usuario, **quiero** reconectar sin perder contexto **para** monitorear sesiones largas.
+
+**Criterios:**
+- Join/leave robusto con ref-count en cliente.
+- Replay de output reciente al reconectar.
+- Estado de sesión consistente entre API/WS/DB.
+
+## D) Requisitos no funcionales V2
+
+### RNF-V2-001: Confiabilidad de inicio
+- Tasa de fallo de creación Claude < 5% en 20 ejecuciones consecutivas.
+
+### RNF-V2-002: Usabilidad de control
+- 100% de tests de interacción para close/minimize del fullscreen en click afuera + `Esc`.
+
+### RNF-V2-003: Performance de grid
+- Resize/drag percibido fluido en 10 sesiones activas simultáneas.
+
+## E) Uso de herramientas externas (referencia oficial)
+
+- **VibeTunnel:** referencia para patrones de runtime PTY, auth y acceso remoto.
+- **tmuxwatch:** referencia para wrapper tmux y diagnóstico por snapshot.
+- **No objetivo en core runtime actual:** `llm-codes`, `wacli`, `homebrew-tap`.
+
+## F) Plan de ejecución y commits
+
+La ejecución queda formalizada en:
+
+- `docs/analysis-extended/refactor-v2-master-plan.md`
+- `docs/analysis-extended/prompt-refactor-siguiente-sesion.md`
+
+Con regla obligatoria: **1 commit por tarea significativa/stage**.
+
+---
+
 ## 1. Propósito
 
 ### 1.1 Problema

@@ -20,7 +20,7 @@ export const SocketHandler = (req: NextApiRequest, res: NextApiResponse & { sock
 
   // Store user sessions
   const users = new Map<string, SocketUser>();
-  const forwardedSessions = new Set<string>();
+  const forwardedSessionPids = new Map<string, number>();
 
   io.on('connection', (socket) => {
     console.log(`Client connected: ${socket.id}`);
@@ -50,18 +50,32 @@ export const SocketHandler = (req: NextApiRequest, res: NextApiResponse & { sock
 
         // Ensure this session is wired for realtime room forwarding even if it was
         // created before Socket.io initialized.
-        if (session.pty && !forwardedSessions.has(session.id)) {
-          forwardedSessions.add(session.id);
+        if (session.pty) {
+          const ptyPid = session.pty.pid;
+          const forwardedPid = forwardedSessionPids.get(session.id);
 
-          session.pty.onData((data) => {
-            io.to(`session:${session.id}`).emit('terminal:output', session.id, data);
-          });
+          if (forwardedPid !== ptyPid) {
+            const attachedPty = session.pty;
+            forwardedSessionPids.set(session.id, ptyPid);
 
-          session.pty.onExit(({ exitCode }) => {
-            io.to(`session:${session.id}`).emit('terminal:exited', session.id, exitCode);
-            io.to(`session:${session.id}`).emit('terminal:status', session.id, exitCode === 0 ? 'stopped' : 'error');
-            forwardedSessions.delete(session.id);
-          });
+            attachedPty.onData((data) => {
+              if (forwardedSessionPids.get(session.id) !== ptyPid) {
+                return;
+              }
+
+              io.to(`session:${session.id}`).emit('terminal:output', session.id, data);
+            });
+
+            attachedPty.onExit(({ exitCode }) => {
+              if (forwardedSessionPids.get(session.id) !== ptyPid) {
+                return;
+              }
+
+              io.to(`session:${session.id}`).emit('terminal:exited', session.id, exitCode);
+              io.to(`session:${session.id}`).emit('terminal:status', session.id, exitCode === 0 ? 'stopped' : 'error');
+              forwardedSessionPids.delete(session.id);
+            });
+          }
         }
 
         // Send recent output history

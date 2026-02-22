@@ -1,15 +1,22 @@
 import { spawn, IPty } from 'node-pty';
 import { randomUUID } from 'crypto';
+import { spawn as spawnProcess } from 'child_process';
 import { db } from './db';
-import { sessions, logs } from './db/schema';
+import { sessions } from './db/schema';
 import { TmuxWrapper } from './tmux';
-import type { Session, SessionConfig, SessionCreateRequest } from './types';
+import type { Session, SessionCreateRequest } from './types';
 import { eq } from 'drizzle-orm';
+
+interface SessionCreateConfig extends SessionCreateRequest {
+  id?: string;
+  socketPath?: string;
+}
 
 export class SessionManager {
   private static instance: SessionManager;
   private activeSessions: Map<string, Session> = new Map();
   private sessionOutputs: Map<string, string[]> = new Map();
+  private activePtyPids: Map<string, number> = new Map();
 
   private constructor() {}
 
@@ -20,30 +27,40 @@ export class SessionManager {
     return SessionManager.instance;
   }
 
-  async create(config: SessionCreateRequest): Promise<Session> {
-    const sessionId = randomUUID();
-    const socketPath = TmuxWrapper.generateSocketPath(sessionId);
+  async create(config: SessionCreateConfig): Promise<Session> {
+    const sessionId = config.id || randomUUID();
+    const socketPath = config.socketPath || TmuxWrapper.generateSocketPath(sessionId);
     
     // Generate session name
     const sessionName = config.name || `${config.type}-${sessionId.slice(0, 8)}`;
     
-    // Build command based on type
-    let command: string;
-    switch (config.type) {
-      case 'claude':
-        command = `claude ${config.flags?.includes('--yolo') ? '--yolo' : ''} ${config.flags?.includes('--full-auto') ? '--full-auto' : ''} --workdir ${config.workdir}`.trim();
-        break;
-      case 'droid':
-        command = `droid ${config.workdir}`;
-        break;
-      case 'shell':
-        command = config.command || (process.platform === 'win32' ? 'cmd.exe' : '/bin/bash');
-        break;
-      default:
-        throw new Error(`Unknown session type: ${config.type}`);
-    }
-
     try {
+      // Build command based on type
+      let command: string;
+      switch (config.type) {
+        case 'claude': {
+          const claudeBinary = await this.resolveCommandBinary('claude');
+          command = [
+            claudeBinary,
+            config.flags?.includes('--yolo') ? '--yolo' : null,
+            config.flags?.includes('--full-auto') ? '--full-auto' : null,
+          ]
+            .filter(Boolean)
+            .join(' ');
+          break;
+        }
+        case 'droid': {
+          const droidBinary = await this.resolveCommandBinary('droid');
+          command = droidBinary;
+          break;
+        }
+        case 'shell':
+          command = config.command || (process.platform === 'win32' ? 'cmd.exe' : '/bin/bash');
+          break;
+        default:
+          throw new Error(`Unknown session type: ${config.type}`);
+      }
+
       // Create tmux session
       const tmuxSession = await TmuxWrapper.createSession({
         name: sessionName,
@@ -98,8 +115,7 @@ export class SessionManager {
       this.setupPtyHandlers(sessionId, pty);
 
       // Save to database
-      await db.insert(sessions).values({
-        id: sessionId,
+      const persistedSession = {
         name: sessionName,
         type: config.type,
         workdir: config.workdir,
@@ -107,10 +123,34 @@ export class SessionManager {
         command,
         flags: JSON.stringify(config.flags || []),
         pid: pty.pid,
-        status: 'running',
+        status: 'running' as const,
         createdAt: session.createdAt,
-        updatedAt: session.updatedAt
-      });
+        updatedAt: session.updatedAt,
+      };
+
+      if (config.id) {
+        const [existingSession] = await db
+          .select({ id: sessions.id })
+          .from(sessions)
+          .where(eq(sessions.id, sessionId))
+          .limit(1);
+
+        if (existingSession) {
+          await db.update(sessions)
+            .set(persistedSession)
+            .where(eq(sessions.id, sessionId));
+        } else {
+          await db.insert(sessions).values({
+            id: sessionId,
+            ...persistedSession,
+          });
+        }
+      } else {
+        await db.insert(sessions).values({
+          id: sessionId,
+          ...persistedSession,
+        });
+      }
 
       return session;
     } catch (error) {
@@ -125,19 +165,52 @@ export class SessionManager {
 
   async kill(sessionId: string): Promise<void> {
     const session = this.activeSessions.get(sessionId);
+
     if (!session) {
-      throw new Error(`Session not found: ${sessionId}`);
+      const [persistedSession] = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1);
+      if (!persistedSession) {
+        throw new Error(`Session not found: ${sessionId}`);
+      }
+
+      if (persistedSession.status === 'running') {
+        try {
+          await TmuxWrapper.killSession(persistedSession.name, persistedSession.socketPath);
+        } catch (error) {
+          if (!this.isIgnorableKillError(error)) {
+            throw error;
+          }
+        }
+      }
+
+      await db.update(sessions)
+        .set({
+          status: 'stopped',
+          updatedAt: new Date(),
+        })
+        .where(eq(sessions.id, sessionId));
+
+      this.activePtyPids.delete(sessionId);
+      this.sessionOutputs.delete(sessionId);
+      return;
     }
 
     try {
       // Kill the pty
       if (session.pty) {
-        session.pty.kill();
+        try {
+          session.pty.kill();
+        } catch {}
       }
 
       // Kill tmux session
       if (session.tmuxSession && session.socketPath) {
-        await TmuxWrapper.killSession(session.tmuxSession, session.socketPath);
+        try {
+          await TmuxWrapper.killSession(session.tmuxSession, session.socketPath);
+        } catch (error) {
+          if (!this.isIgnorableKillError(error)) {
+            throw error;
+          }
+        }
       }
 
       // Update status
@@ -154,6 +227,7 @@ export class SessionManager {
 
       // Remove from memory
       this.activeSessions.delete(sessionId);
+      this.activePtyPids.delete(sessionId);
       this.sessionOutputs.delete(sessionId);
     } catch (error) {
       throw new Error(`Failed to kill session: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -213,6 +287,9 @@ export class SessionManager {
     const tmuxSessions = await TmuxWrapper.listSessions(sessionData.socketPath);
     const tmuxSession = tmuxSessions.find((entry) => entry.name === sessionData.name);
     if (!tmuxSession) {
+      await db.update(sessions)
+        .set({ status: 'stopped', updatedAt: new Date() })
+        .where(eq(sessions.id, sessionId));
       return undefined;
     }
 
@@ -268,8 +345,15 @@ export class SessionManager {
   }
 
   private setupPtyHandlers(sessionId: string, pty: IPty): void {
+    const ptyPid = pty.pid;
+    this.activePtyPids.set(sessionId, ptyPid);
+
     // Handle data output
     pty.onData((data) => {
+      if (this.activePtyPids.get(sessionId) !== ptyPid) {
+        return;
+      }
+
       const outputs = this.sessionOutputs.get(sessionId);
       if (outputs) {
         outputs.push(data);
@@ -286,6 +370,12 @@ export class SessionManager {
 
     // Handle exit
     pty.onExit(({ exitCode }) => {
+      if (this.activePtyPids.get(sessionId) !== ptyPid) {
+        return;
+      }
+
+      this.activePtyPids.delete(sessionId);
+
       const session = this.activeSessions.get(sessionId);
       if (session) {
         session.status = exitCode === 0 ? 'stopped' : 'error';
@@ -305,6 +395,60 @@ export class SessionManager {
         // TODO: Emit to WebSocket clients
         // this.emitToSession(sessionId, 'terminal:exited', exitCode);
       }
+    });
+  }
+
+  private isIgnorableKillError(error: unknown): boolean {
+    const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+    return (
+      message.includes('no server running')
+      || message.includes("can't find session")
+      || message.includes('failed to connect to server')
+      || message.includes('no such file or directory')
+    );
+  }
+
+  private async resolveCommandBinary(binary: 'claude' | 'droid'): Promise<string> {
+    const probeCommand = process.platform === 'win32' ? 'where' : 'which';
+    return new Promise<string>((resolve, reject) => {
+      let stdout = '';
+      let stderr = '';
+
+      const probe = spawnProcess(probeCommand, [binary], {
+        env: {
+          ...process.env,
+          PATH: process.env.PATH || '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+        },
+      });
+
+      probe.stdout?.on('data', (chunk: Buffer | string) => {
+        stdout += chunk.toString();
+      });
+
+      probe.stderr?.on('data', (chunk: Buffer | string) => {
+        stderr += chunk.toString();
+      });
+
+      probe.on('error', (error) => reject(error));
+      probe.on('close', (code) => {
+        if (code !== 0) {
+          const details = stderr.trim() || stdout.trim() || `${probeCommand} returned exit code ${code}`;
+          reject(new Error(`Required command '${binary}' is not available in PATH (${details}).`));
+          return;
+        }
+
+        const firstPath = stdout
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .find(Boolean);
+
+        if (!firstPath) {
+          reject(new Error(`Required command '${binary}' is not available in PATH.`));
+          return;
+        }
+
+        resolve(firstPath);
+      });
     });
   }
 
@@ -359,6 +503,10 @@ export class SessionManager {
               this.activeSessions.set(sessionData.id, session);
               this.sessionOutputs.set(sessionData.id, []);
               this.setupPtyHandlers(sessionData.id, pty);
+            } else {
+              await db.update(sessions)
+                .set({ status: 'stopped', updatedAt: new Date() })
+                .where(eq(sessions.id, sessionData.id));
             }
           } catch (error) {
             // Mark as stopped if can't reconnect

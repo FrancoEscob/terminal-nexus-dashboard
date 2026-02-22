@@ -79,8 +79,21 @@ export function NewSessionModal({ isOpen, onClose, onCreated }: NewSessionModalP
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-900 p-5">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4"
+      role="dialog"
+      aria-modal="true"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-900 p-5"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-100">New Session</h2>
           <button type="button" onClick={onClose} className="text-sm text-slate-400 hover:text-slate-200">Cerrar</button>

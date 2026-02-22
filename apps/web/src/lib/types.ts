@@ -78,22 +78,19 @@ export interface SocketUser {
 // Command builders for different session types
 export class CommandBuilder {
   static buildClaudeCommand(workdir: string, flags: string[] = []): string {
+    void workdir;
     const parts = ['claude'];
     
     if (flags.includes('--yolo')) parts.push('--yolo');
     if (flags.includes('--full-auto')) parts.push('--full-auto');
     
-    parts.push('--workdir', workdir);
-    
     return parts.join(' ');
   }
 
   static buildDroidCommand(workdir: string, flags: string[] = []): string {
+    void workdir;
+    void flags;
     const parts = ['droid'];
-    
-    // Add any droid-specific flags here
-    
-    parts.push(workdir);
     
     return parts.join(' ');
   }

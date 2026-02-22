@@ -21,6 +21,7 @@ let socket: TerminalSocket | null = null;
 let initialized = false;
 let reconnectHookAttached = false;
 const joinedSessionCounts = new Map<string, number>();
+const pendingLeaveTimers = new Map<string, number>();
 const outputListeners = new Set<(sessionId: string, data: string) => void>();
 const statusListeners = new Set<(sessionId: string, status: SessionStatus) => void>();
 const resizeListeners = new Set<(sessionId: string, cols: number, rows: number) => void>();
@@ -81,6 +82,13 @@ export async function getSocketClient(): Promise<TerminalSocket> {
 
 export async function joinSession(sessionId: string): Promise<void> {
   const client = await getSocketClient();
+
+  const pendingLeaveTimer = pendingLeaveTimers.get(sessionId);
+  if (pendingLeaveTimer !== undefined) {
+    window.clearTimeout(pendingLeaveTimer);
+    pendingLeaveTimers.delete(sessionId);
+  }
+
   const currentCount = joinedSessionCounts.get(sessionId) ?? 0;
   const nextCount = currentCount + 1;
   joinedSessionCounts.set(sessionId, nextCount);
@@ -93,9 +101,23 @@ export async function joinSession(sessionId: string): Promise<void> {
 export async function leaveSession(sessionId: string): Promise<void> {
   const client = await getSocketClient();
   const currentCount = joinedSessionCounts.get(sessionId) ?? 0;
-  if (currentCount <= 1) {
+
+  if (currentCount <= 0) {
+    return;
+  }
+
+  if (currentCount === 1) {
     joinedSessionCounts.delete(sessionId);
-    client.emit('terminal:leave', sessionId);
+
+    const timerId = window.setTimeout(() => {
+      pendingLeaveTimers.delete(sessionId);
+      const liveCount = joinedSessionCounts.get(sessionId) ?? 0;
+      if (liveCount <= 0) {
+        client.emit('terminal:leave', sessionId);
+      }
+    }, 300);
+
+    pendingLeaveTimers.set(sessionId, timerId);
     return;
   }
 
