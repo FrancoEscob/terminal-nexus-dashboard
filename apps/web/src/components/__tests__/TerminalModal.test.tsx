@@ -65,4 +65,15 @@ describe('TerminalModal', () => {
 
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it('still closes on backdrop after interacting inside modal content', () => {
+    const onClose = vi.fn();
+
+    render(<TerminalModal session={session} onClose={onClose} onChanged={vi.fn()} />);
+
+    fireEvent.click(screen.getByText('modal-session'));
+    fireEvent.click(screen.getByRole('dialog'));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
