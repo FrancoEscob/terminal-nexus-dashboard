@@ -228,7 +228,7 @@ Además, mantener trazabilidad de avance en este plan con un estado por stage.
 | Stage | Estado | Commits | Nota |
 |---|---|---|---|
 | 0 | ✅ Completado | `446bf5f`, `a85e827` | Cobertura de regresión + logging estructurado |
-| 1 | ⏳ Pendiente | - | Hotfix modal click-outside + Escape |
+| 1 | ✅ Completado | `146ca9f`, `89e69b7` | Close por Escape + cobertura de interacciones fullscreen |
 | 2 | ⏳ Pendiente | - | Abstracción runtime + factory |
 | 3 | ⏳ Pendiente | - | Direct PTY runtime + fix `EXITED` |
 | 4 | ⏳ Pendiente | - | Flex-grid inline-first |
