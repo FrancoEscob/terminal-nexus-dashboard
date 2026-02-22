@@ -206,6 +206,35 @@ Usar como referencia de:
 > Regla: **1 commit por tarea significativa**.  
 > No mezclar runtime + UI + docs en un solo commit gigante.
 
+### Gobernanza obligatoria por stage
+
+Al finalizar **cada stage (0..6)**, además de tests/commit, crear o actualizar:
+
+- `docs/stages/explanations/stage_<N>_explanation.md`
+
+Formato mínimo del archivo de explicación:
+1. Contexto y objetivo del stage.
+2. Qué había antes (problema/limitación).
+3. Qué se cambió (archivo por archivo) y por qué.
+4. Cómo se valida (tests/lint/type-check y resultado).
+5. Diferencias observables antes vs después.
+6. Riesgos pendientes.
+7. Ajustes propuestos para stages futuros (si aplica).
+
+Además, mantener trazabilidad de avance en este plan con un estado por stage.
+
+### Estado de avance del plan
+
+| Stage | Estado | Commits | Nota |
+|---|---|---|---|
+| 0 | ✅ Completado | `446bf5f`, `a85e827` | Cobertura de regresión + logging estructurado |
+| 1 | ⏳ Pendiente | - | Hotfix modal click-outside + Escape |
+| 2 | ⏳ Pendiente | - | Abstracción runtime + factory |
+| 3 | ⏳ Pendiente | - | Direct PTY runtime + fix `EXITED` |
+| 4 | ⏳ Pendiente | - | Flex-grid inline-first |
+| 5 | ⏳ Pendiente | - | Alineación API + integración runtime/realtime |
+| 6 | ⏳ Pendiente | - | PoC VibeRuntime (opcional) |
+
 ## Stage 0 — Baseline y observabilidad
 
 ### Objetivo
