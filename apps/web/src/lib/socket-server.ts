@@ -2,15 +2,24 @@ import { Server as SocketIOServer } from 'socket.io';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { sessionManager } from './session-manager';
 import type { ServerToClientEvents, ClientToServerEvents, SocketUser } from './types';
+import { logRuntimeLifecycle } from './runtime-lifecycle-logger';
 
 export const SocketHandler = (req: NextApiRequest, res: NextApiResponse & { socket: any }) => {
   if (res.socket.server.io) {
-    console.log('Socket.io already initialized');
+    logRuntimeLifecycle({
+      event: 'socket_server_already_initialized',
+      runtime: 'tmux',
+      source: 'socket-server#SocketHandler',
+    });
     res.end();
     return;
   }
 
-  console.log('Initializing Socket.io server...');
+  logRuntimeLifecycle({
+    event: 'socket_server_initializing',
+    runtime: 'tmux',
+    source: 'socket-server#SocketHandler',
+  });
   
   const io = new SocketIOServer<ClientToServerEvents, ServerToClientEvents>(res.socket.server, {
     path: '/api/socket-io',
@@ -23,7 +32,12 @@ export const SocketHandler = (req: NextApiRequest, res: NextApiResponse & { sock
   const forwardedSessionPids = new Map<string, number>();
 
   io.on('connection', (socket) => {
-    console.log(`Client connected: ${socket.id}`);
+    logRuntimeLifecycle({
+      event: 'socket_client_connected',
+      runtime: 'tmux',
+      source: 'socket-server#connection',
+      metadata: { socketId: socket.id },
+    });
     
     // Create user object
     const user: SocketUser = {
@@ -34,10 +48,30 @@ export const SocketHandler = (req: NextApiRequest, res: NextApiResponse & { sock
 
     // Handle joining a terminal session
     socket.on('terminal:join', async (sessionId: string) => {
+      logRuntimeLifecycle({
+        event: 'socket_terminal_join_requested',
+        sessionId,
+        runtime: 'tmux',
+        source: 'socket-server#terminal:join',
+        metadata: { socketId: socket.id },
+      });
+
       try {
         const session = await sessionManager.ensureActiveSession(sessionId);
         if (!session) {
           socket.emit('terminal:status', sessionId, 'error');
+
+          logRuntimeLifecycle({
+            event: 'socket_terminal_join_rejected',
+            sessionId,
+            runtime: 'tmux',
+            status: 'failed',
+            source: 'socket-server#terminal:join',
+            reason: 'session_unavailable',
+            level: 'warn',
+            metadata: { socketId: socket.id },
+          });
+
           return;
         }
 
@@ -84,9 +118,29 @@ export const SocketHandler = (req: NextApiRequest, res: NextApiResponse & { sock
           socket.emit('terminal:output', sessionId, line);
         }
 
-        console.log(`User ${socket.id} joined session ${sessionId}`);
+        logRuntimeLifecycle({
+          event: 'socket_terminal_join_completed',
+          sessionId,
+          sessionType: session.type,
+          runtime: 'tmux',
+          status: session.status,
+          source: 'socket-server#terminal:join',
+          metadata: {
+            socketId: socket.id,
+            replayedLines: recentOutput.length,
+          },
+        });
       } catch (error) {
-        console.error(`Error joining session ${sessionId}:`, error);
+        logRuntimeLifecycle({
+          event: 'socket_terminal_join_failed',
+          sessionId,
+          runtime: 'tmux',
+          status: 'failed',
+          source: 'socket-server#terminal:join',
+          reason: error instanceof Error ? error.message : String(error),
+          level: 'error',
+          metadata: { socketId: socket.id },
+        });
         socket.emit('terminal:status', sessionId, 'error');
       }
     });
@@ -95,7 +149,14 @@ export const SocketHandler = (req: NextApiRequest, res: NextApiResponse & { sock
     socket.on('terminal:leave', (sessionId: string) => {
       socket.leave(`session:${sessionId}`);
       user.joinedSessions.delete(sessionId);
-      console.log(`User ${socket.id} left session ${sessionId}`);
+
+      logRuntimeLifecycle({
+        event: 'socket_terminal_leave',
+        sessionId,
+        runtime: 'tmux',
+        source: 'socket-server#terminal:leave',
+        metadata: { socketId: socket.id },
+      });
     });
 
     // Handle terminal input
@@ -113,14 +174,47 @@ export const SocketHandler = (req: NextApiRequest, res: NextApiResponse & { sock
         
         // Broadcast resize to all clients in the session
         io.to(`session:${sessionId}`).emit('terminal:resize', sessionId, cols, rows);
+
+        logRuntimeLifecycle({
+          event: 'socket_terminal_resize_forwarded',
+          sessionId,
+          runtime: 'tmux',
+          source: 'socket-server#terminal:resize',
+          metadata: {
+            socketId: socket.id,
+            cols,
+            rows,
+          },
+        });
       } catch (error) {
-        console.error(`Error resizing session ${sessionId}:`, error);
+        logRuntimeLifecycle({
+          event: 'socket_terminal_resize_failed',
+          sessionId,
+          runtime: 'tmux',
+          status: 'failed',
+          source: 'socket-server#terminal:resize',
+          reason: error instanceof Error ? error.message : String(error),
+          level: 'error',
+          metadata: {
+            socketId: socket.id,
+            cols,
+            rows,
+          },
+        });
       }
     });
 
     // Handle disconnection
     socket.on('disconnect', () => {
-      console.log(`Client disconnected: ${socket.id}`);
+      logRuntimeLifecycle({
+        event: 'socket_client_disconnected',
+        runtime: 'tmux',
+        source: 'socket-server#disconnect',
+        metadata: {
+          socketId: socket.id,
+          joinedSessions: Array.from(user.joinedSessions),
+        },
+      });
       
       // Leave all sessions
       for (const sessionId of user.joinedSessions) {
